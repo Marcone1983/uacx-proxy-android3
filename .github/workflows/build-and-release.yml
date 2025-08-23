@@ -67,16 +67,16 @@ jobs:
       run: |
         npm install -g pkg
         mkdir -p dist
-        pkg . --target node20-linux-x64 --output dist/smartcache-linux
+        pkg . --target node18-linux-x64 --output dist/freeapi-linux-x64
         ls -la dist/
-        chmod +x dist/smartcache-linux
+        chmod +x dist/freeapi-linux-x64
         
     - name: Build Windows executable  
       if: matrix.os == 'windows-latest'
       run: |
         npm install -g pkg
         New-Item -ItemType Directory -Force -Path dist
-        pkg . --target node20-win-x64 --output dist/smartcache-windows.exe
+        pkg . --target node18-win-x64 --output dist/freeapi-windows-x64.exe
         Get-ChildItem dist/
       shell: pwsh
         
@@ -85,30 +85,30 @@ jobs:
       run: |
         npm install -g pkg
         mkdir -p dist
-        pkg . --target node20-macos-x64 --output dist/smartcache-macos
+        pkg . --target node18-macos-x64 --output dist/freeapi-macos-x64
         ls -la dist/
-        chmod +x dist/smartcache-macos
+        chmod +x dist/freeapi-macos-x64
         
     - name: Upload Linux artifacts
       if: matrix.os == 'ubuntu-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: smartcache-linux
-        path: dist/smartcache-linux*
+        name: freeapi-linux
+        path: dist/freeapi-linux-x64
         
     - name: Upload Windows artifacts  
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: smartcache-windows
-        path: dist/smartcache-windows.exe
+        name: freeapi-windows
+        path: dist/freeapi-windows-x64.exe
         
     - name: Upload macOS artifacts
       if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@v4
       with:
-        name: smartcache-macos
-        path: dist/smartcache-macos*
+        name: freeapi-macos
+        path: dist/freeapi-macos-x64
 
   build-android-apk:
     runs-on: ubuntu-latest
@@ -1421,7 +1421,7 @@ jobs:
     - name: Upload APK artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: smartcache-android-enterprise
+        name: freeapi-android-${{ matrix.variant }}
         path: |
           android/app/build/outputs/apk/**/*.apk
           android/apk-checksums.txt
