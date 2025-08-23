@@ -14,12 +14,13 @@ on:
 
 jobs:
   build-executables:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         node-version: [20.x]
+      fail-fast: false
         
     steps:
     - name: Checkout repository
@@ -44,14 +45,49 @@ jobs:
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        choco install python sqlite
+        # Use built-in Python and install SQLite via vcpkg
+        python --version
+        python -m pip install --upgrade pip setuptools wheel
+        
+        # Install vcpkg for native dependencies
+        git clone https://github.com/Microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat
+        C:\vcpkg\vcpkg.exe integrate install
+        C:\vcpkg\vcpkg.exe install sqlite3:x64-windows
+        
+        # Set environment variables for native compilation
+        echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+        echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
         
     - name: Install dependencies
       run: npm install
       
-    - name: Build executables
+    - name: Build Linux executable
+      if: matrix.os == 'ubuntu-latest'
       run: |
-        npm run build
+        npm install -g pkg
+        mkdir -p dist
+        pkg . --target node20-linux-x64 --output dist/smartcache-linux
+        ls -la dist/
+        chmod +x dist/smartcache-linux
+        
+    - name: Build Windows executable  
+      if: matrix.os == 'windows-latest'
+      run: |
+        npm install -g pkg
+        New-Item -ItemType Directory -Force -Path dist
+        pkg . --target node20-win-x64 --output dist/smartcache-windows.exe
+        Get-ChildItem dist/
+      shell: pwsh
+        
+    - name: Build macOS executable
+      if: matrix.os == 'macos-latest' 
+      run: |
+        npm install -g pkg
+        mkdir -p dist
+        pkg . --target node20-macos-x64 --output dist/smartcache-macos
+        ls -la dist/
+        chmod +x dist/smartcache-macos
         
     - name: Upload Linux artifacts
       if: matrix.os == 'ubuntu-latest'
@@ -94,11 +130,42 @@ jobs:
         
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        cmdline-tools-version: 12266719
+        accept-android-sdk-licenses: true
+        log-accepted-android-sdk-licenses: true
+        packages: tools platform-tools platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653
       
-    - name: Install Android tools
+    - name: Accept all Android SDK licenses manually
       run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653"
+        # Create license directory if not exists
+        mkdir -p "$ANDROID_HOME/licenses"
+        
+        # Write all standard license hashes
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_HOME/licenses/android-sdk-license"
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license" 
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> "$ANDROID_HOME/licenses/android-sdk-license"
+        
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+        echo "79120722343a6f314e0719f863036c702b0e6b2a" >> "$ANDROID_HOME/licenses/android-sdk-preview-license"
+        echo "504667f4c0de7af1a06de9f4b1727b84351f2910" >> "$ANDROID_HOME/licenses/android-sdk-preview-license"
+        
+        echo "33b6a2b64607f11b759f320ef9dff4ae5c47d97a" > "$ANDROID_HOME/licenses/google-gdk-license"
+        
+        echo "d975f751698a77b662f1254ddbeed3901e976f5a" > "$ANDROID_HOME/licenses/intel-android-extra-license"
+        
+        echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_HOME/licenses/android-googletv-license"
+        
+        echo "154748014a207a6e17b47859b65b04c71bb4c8c0" > "$ANDROID_HOME/licenses/android-studio-license"
+        
+        echo "859f317696f67ef3d7f30a50a5560e7834b43903" > "$ANDROID_HOME/licenses/android-intel-x86-atom-license"
+        
+        # List all accepted licenses
+        echo "Accepted licenses:"
+        ls -la "$ANDROID_HOME/licenses/"
+        
+        # Verify SDK manager accepts all licenses
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses --verbose
         
     - name: Install system dependencies for native compilation
       run: |
@@ -145,36 +212,109 @@ jobs:
         cat > android/app/src/main/AndroidManifest.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            xmlns:tools="http://schemas.android.com/tools"
             package="com.smartcache.enterprise">
             
+            <!-- Core networking permissions -->
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
             <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+            <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+            
+            <!-- Service and background operation permissions -->
             <uses-permission android:name="android.permission.WAKE_LOCK" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
             <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+            <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+            <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+            
+            <!-- File system permissions for Node.js -->
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+                android:maxSdkVersion="32" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+                android:maxSdkVersion="32" />
+            <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" 
+                tools:ignore="ScopedStorage" />
+            
+            <!-- Android 13+ notification permission -->
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+            
+            <!-- Auto-start and boot permissions -->
+            <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+            <uses-permission android:name="android.permission.QUICKBOOT_POWERON" />
+            
+            <!-- Hardware features -->
+            <uses-feature 
+                android:name="android.hardware.wifi" 
+                android:required="true" />
+            <uses-feature 
+                android:name="android.software.leanback" 
+                android:required="false" />
             
             <application
                 android:allowBackup="true"
+                android:dataExtractionRules="@xml/data_extraction_rules"
+                android:fullBackupContent="@xml/backup_rules"
                 android:icon="@mipmap/ic_launcher"
-                android:label="SmartCache Enterprise"
+                android:label="${appName}"
                 android:theme="@style/AppTheme"
-                android:usesCleartextTraffic="true">
+                android:usesCleartextTraffic="true"
+                android:requestLegacyExternalStorage="true"
+                android:preserveLegacyExternalStorage="true"
+                android:networkSecurityConfig="@xml/network_security_config"
+                tools:targetApi="34">
                 
                 <activity
                     android:name=".MainActivity"
-                    android:exported="true">
+                    android:exported="true"
+                    android:screenOrientation="portrait"
+                    android:launchMode="singleTop"
+                    android:theme="@style/SplashTheme">
                     <intent-filter>
                         <action android:name="android.intent.action.MAIN" />
                         <category android:name="android.intent.category.LAUNCHER" />
                     </intent-filter>
+                    <intent-filter>
+                        <action android:name="android.intent.action.VIEW" />
+                        <category android:name="android.intent.category.DEFAULT" />
+                        <category android:name="android.intent.category.BROWSABLE" />
+                        <data android:scheme="smartcache" />
+                    </intent-filter>
                 </activity>
+                
+                <activity
+                    android:name=".PermissionsActivity"
+                    android:exported="false"
+                    android:theme="@style/TransparentTheme" />
                 
                 <service
                     android:name=".SmartCacheService"
                     android:enabled="true"
                     android:exported="false"
-                    android:foregroundServiceType="dataSync" />
+                    android:foregroundServiceType="dataSync"
+                    android:stopWithTask="false" />
+                
+                <receiver
+                    android:name=".BootReceiver"
+                    android:enabled="true"
+                    android:exported="true">
+                    <intent-filter android:priority="1000">
+                        <action android:name="android.intent.action.BOOT_COMPLETED" />
+                        <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                        <category android:name="android.intent.category.DEFAULT" />
+                    </intent-filter>
+                </receiver>
+                
+                <provider
+                    android:name="androidx.core.content.FileProvider"
+                    android:authorities="${applicationId}.fileprovider"
+                    android:exported="false"
+                    android:grantUriPermissions="true">
+                    <meta-data
+                        android:name="android.support.FILE_PROVIDER_PATHS"
+                        android:resource="@xml/file_paths" />
+                </provider>
                     
             </application>
         </manifest>
@@ -185,37 +325,224 @@ jobs:
         cat > android/app/src/main/java/com/smartcache/MainActivity.java << 'EOF'
         package com.smartcache.enterprise;
         
+        import android.Manifest;
         import android.app.Activity;
+        import android.app.AlertDialog;
         import android.content.Intent;
+        import android.content.pm.PackageManager;
         import android.net.Uri;
+        import android.os.Build;
         import android.os.Bundle;
+        import android.os.Handler;
+        import android.provider.Settings;
+        import android.webkit.WebChromeClient;
         import android.webkit.WebView;
         import android.webkit.WebViewClient;
         import android.widget.Toast;
+        import androidx.core.app.ActivityCompat;
+        import androidx.core.content.ContextCompat;
+        import java.util.ArrayList;
+        import java.util.List;
         
         public class MainActivity extends Activity {
             private WebView webView;
+            private static final int PERMISSIONS_REQUEST_CODE = 1000;
+            private static final int BATTERY_OPTIMIZATION_REQUEST = 1001;
+            private static final int NOTIFICATION_PERMISSION_REQUEST = 1002;
+            
+            private static final String[] REQUIRED_PERMISSIONS = {
+                Manifest.permission.INTERNET,
+                Manifest.permission.ACCESS_NETWORK_STATE,
+                Manifest.permission.ACCESS_WIFI_STATE,
+                Manifest.permission.WAKE_LOCK,
+                Manifest.permission.FOREGROUND_SERVICE,
+                Manifest.permission.RECEIVE_BOOT_COMPLETED
+            };
             
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 
+                // Check and request permissions first
+                checkAndRequestPermissions();
+            }
+            
+            private void checkAndRequestPermissions() {
+                List<String> permissionsNeeded = new ArrayList<>();
+                
+                // Check basic permissions
+                for (String permission : REQUIRED_PERMISSIONS) {
+                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                        permissionsNeeded.add(permission);
+                    }
+                }
+                
+                // Check notification permission for Android 13+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS);
+                    }
+                }
+                
+                if (!permissionsNeeded.isEmpty()) {
+                    showPermissionDialog(permissionsNeeded);
+                } else {
+                    checkBatteryOptimization();
+                }
+            }
+            
+            private void showPermissionDialog(List<String> permissions) {
+                new AlertDialog.Builder(this)
+                    .setTitle("Autorizzazioni Necessarie")
+                    .setMessage("SmartCache Enterprise richiede le seguenti autorizzazioni per funzionare correttamente:\n\n" +
+                               "• Accesso alla rete (per il caching AI)\n" +
+                               "• Servizi in background (per il funzionamento continuo)\n" +
+                               "• Notifiche (per gli aggiornamenti di stato)\n" +
+                               "• Avvio automatico (per l'inizializzazione al boot)")
+                    .setPositiveButton("Concedi Autorizzazioni", (dialog, which) -> {
+                        ActivityCompat.requestPermissions(this, 
+                            permissions.toArray(new String[0]), 
+                            PERMISSIONS_REQUEST_CODE);
+                    })
+                    .setNegativeButton("Annulla", (dialog, which) -> {
+                        Toast.makeText(this, "Le autorizzazioni sono necessarie per il funzionamento", Toast.LENGTH_LONG).show();
+                        finish();
+                    })
+                    .setCancelable(false)
+                    .show();
+            }
+            
+            private void checkBatteryOptimization() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Intent intent = new Intent();
+                    String packageName = getPackageName();
+                    
+                    if (!Settings.System.canWrite(this)) {
+                        new AlertDialog.Builder(this)
+                            .setTitle("Ottimizzazione Batteria")
+                            .setMessage("Per garantire il funzionamento continuo di SmartCache, si consiglia di disabilitare l'ottimizzazione della batteria.")
+                            .setPositiveButton("Apri Impostazioni", (dialog, which) -> {
+                                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                                intent.setData(Uri.parse("package:" + packageName));
+                                startActivityForResult(intent, BATTERY_OPTIMIZATION_REQUEST);
+                            })
+                            .setNegativeButton("Continua", (dialog, which) -> initializeApp())
+                            .show();
+                    } else {
+                        initializeApp();
+                    }
+                } else {
+                    initializeApp();
+                }
+            }
+            
+            private void initializeApp() {
+                // Setup splash screen UI
+                setContentView(R.layout.activity_main);
+                
                 // Start SmartCache service
                 Intent serviceIntent = new Intent(this, SmartCacheService.class);
-                startForegroundService(serviceIntent);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
                 
-                // Setup WebView for dashboard
-                webView = new WebView(this);
+                // Setup WebView after a short delay to let service start
+                new Handler().postDelayed(this::setupWebView, 2000);
+                
+                Toast.makeText(this, "SmartCache Enterprise in avvio...", Toast.LENGTH_LONG).show();
+            }
+            
+            private void setupWebView() {
+                webView = findViewById(R.id.webview);
                 webView.getSettings().setJavaScriptEnabled(true);
                 webView.getSettings().setDomStorageEnabled(true);
-                webView.setWebViewClient(new WebViewClient());
+                webView.getSettings().setAllowFileAccess(true);
+                webView.getSettings().setAllowContentAccess(true);
+                webView.getSettings().setBuiltInZoomControls(true);
+                webView.getSettings().setDisplayZoomControls(false);
+                webView.getSettings().setUseWideViewPort(true);
+                webView.getSettings().setLoadWithOverviewMode(true);
                 
-                setContentView(webView);
+                webView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(WebView view, String url) {
+                        super.onPageFinished(view, url);
+                        Toast.makeText(MainActivity.this, "Dashboard SmartCache caricata", Toast.LENGTH_SHORT).show();
+                    }
+                    
+                    @Override
+                    public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                        super.onReceivedError(view, errorCode, description, failingUrl);
+                        // Retry loading after 5 seconds
+                        new Handler().postDelayed(() -> view.loadUrl("http://localhost:3000"), 5000);
+                    }
+                });
+                
+                webView.setWebChromeClient(new WebChromeClient());
                 
                 // Load SmartCache dashboard
                 webView.loadUrl("http://localhost:3000");
+            }
+            
+            @Override
+            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
                 
-                Toast.makeText(this, "SmartCache Enterprise Started", Toast.LENGTH_LONG).show();
+                if (requestCode == PERMISSIONS_REQUEST_CODE) {
+                    boolean allGranted = true;
+                    for (int result : grantResults) {
+                        if (result != PackageManager.PERMISSION_GRANTED) {
+                            allGranted = false;
+                            break;
+                        }
+                    }
+                    
+                    if (allGranted) {
+                        checkBatteryOptimization();
+                    } else {
+                        new AlertDialog.Builder(this)
+                            .setTitle("Autorizzazioni Mancanti")
+                            .setMessage("Alcune autorizzazioni sono state negate. SmartCache potrebbe non funzionare correttamente.")
+                            .setPositiveButton("Riprova", (dialog, which) -> checkAndRequestPermissions())
+                            .setNegativeButton("Continua Comunque", (dialog, which) -> initializeApp())
+                            .show();
+                    }
+                }
+            }
+            
+            @Override
+            protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                super.onActivityResult(requestCode, resultCode, data);
+                if (requestCode == BATTERY_OPTIMIZATION_REQUEST) {
+                    initializeApp();
+                }
+            }
+            
+            @Override
+            public void onBackPressed() {
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    super.onBackPressed();
+                }
+            }
+            
+            @Override
+            protected void onResume() {
+                super.onResume();
+                if (webView != null) {
+                    webView.onResume();
+                }
+            }
+            
+            @Override
+            protected void onPause() {
+                super.onPause();
+                if (webView != null) {
+                    webView.onPause();
+                }
             }
         }
         EOF
@@ -661,6 +988,9 @@ jobs:
         
         # Create app resources
         mkdir -p android/app/src/main/res/values
+        mkdir -p android/app/src/main/res/layout
+        mkdir -p android/app/src/main/res/xml
+        mkdir -p android/app/src/main/res/drawable
         mkdir -p android/app/src/main/res/mipmap-hdpi
         mkdir -p android/app/src/main/res/mipmap-mdpi
         mkdir -p android/app/src/main/res/mipmap-xhdpi
@@ -691,7 +1021,146 @@ jobs:
                 <item name="colorPrimary">#4CAF50</item>
                 <item name="colorPrimaryDark">#388E3C</item>
                 <item name="colorAccent">#FF5722</item>
+                <item name="android:statusBarColor">@android:color/transparent</item>
+                <item name="android:navigationBarColor">#4CAF50</item>
             </style>
+            
+            <style name="SplashTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="colorPrimary">#4CAF50</item>
+                <item name="colorPrimaryDark">#388E3C</item>
+                <item name="android:windowBackground">@drawable/splash_background</item>
+                <item name="android:statusBarColor">@android:color/transparent</item>
+            </style>
+            
+            <style name="TransparentTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="android:windowBackground">@android:color/transparent</item>
+                <item name="android:windowIsTranslucent">true</item>
+                <item name="android:windowAnimationStyle">@null</item>
+            </style>
+        </resources>
+        EOF
+        
+        # Create activity_main.xml layout
+        cat > android/app/src/main/res/layout/activity_main.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#4CAF50">
+            
+            <LinearLayout
+                android:id="@+id/splash_layout"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="32dp">
+                
+                <ImageView
+                    android:layout_width="128dp"
+                    android:layout_height="128dp"
+                    android:src="@mipmap/ic_launcher"
+                    android:layout_marginBottom="24dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SmartCache Enterprise"
+                    android:textColor="@android:color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Inizializzazione in corso..."
+                    android:textColor="@android:color/white"
+                    android:textSize="16sp"
+                    android:layout_marginBottom="32dp" />
+                
+                <ProgressBar
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:indeterminateTint="@android:color/white" />
+                
+            </LinearLayout>
+            
+            <WebView
+                android:id="@+id/webview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+                
+        </RelativeLayout>
+        EOF
+        
+        # Create XML configurations
+        cat > android/app/src/main/res/xml/network_security_config.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <network-security-config>
+            <domain-config cleartextTrafficPermitted="true">
+                <domain includeSubdomains="false">localhost</domain>
+                <domain includeSubdomains="false">127.0.0.1</domain>
+                <domain includeSubdomains="false">10.0.2.2</domain>
+                <domain includeSubdomains="false">192.168.1.1</domain>
+            </domain-config>
+        </network-security-config>
+        EOF
+        
+        cat > android/app/src/main/res/xml/file_paths.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <paths xmlns:android="http://schemas.android.com/apk/res/android">
+            <files-path name="files" path="." />
+            <cache-path name="cache" path="." />
+            <external-files-path name="external_files" path="." />
+            <external-cache-path name="external_cache" path="." />
+        </paths>
+        EOF
+        
+        cat > android/app/src/main/res/xml/data_extraction_rules.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <data-extraction-rules>
+            <cloud-backup>
+                <exclude domain="database" />
+                <exclude domain="sharedpref" path="secure_prefs.xml" />
+            </cloud-backup>
+            <device-transfer>
+                <exclude domain="database" />
+                <exclude domain="sharedpref" path="secure_prefs.xml" />
+            </device-transfer>
+        </data-extraction-rules>
+        EOF
+        
+        cat > android/app/src/main/res/xml/backup_rules.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <full-backup-content>
+            <exclude domain="database" />
+            <exclude domain="sharedpref" path="secure_prefs.xml" />
+        </full-backup-content>
+        EOF
+        
+        # Create splash background drawable
+        cat > android/app/src/main/res/drawable/splash_background.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+            <item android:drawable="@color/splash_color" />
+            <item android:gravity="center">
+                <bitmap
+                    android:src="@mipmap/ic_launcher"
+                    android:gravity="center" />
+            </item>
+        </layer-list>
+        EOF
+        
+        # Add splash color
+        cat >> android/app/src/main/res/values/colors.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <color name="splash_color">#4CAF50</color>
+            <color name="primary_color">#4CAF50</color>
+            <color name="primary_dark_color">#388E3C</color>
+            <color name="accent_color">#FF5722</color>
         </resources>
         EOF
         
@@ -708,6 +1177,45 @@ jobs:
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 144x144 android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 96x96 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+        
+    - name: Create BootReceiver for auto-start
+      run: |
+        cat > android/app/src/main/java/com/smartcache/BootReceiver.java << 'EOF'
+        package com.smartcache.enterprise;
+        
+        import android.content.BroadcastReceiver;
+        import android.content.Context;
+        import android.content.Intent;
+        import android.os.Build;
+        import android.util.Log;
+        
+        public class BootReceiver extends BroadcastReceiver {
+            private static final String TAG = "SmartCacheBootReceiver";
+            
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction()) ||
+                    "android.intent.action.QUICKBOOT_POWERON".equals(intent.getAction())) {
+                    
+                    Log.i(TAG, "Device booted, starting SmartCache Enterprise");
+                    
+                    try {
+                        Intent serviceIntent = new Intent(context, SmartCacheService.class);
+                        
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent);
+                        } else {
+                            context.startService(serviceIntent);
+                        }
+                        
+                        Log.i(TAG, "SmartCache Enterprise service started successfully");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to start SmartCache Enterprise service", e);
+                    }
+                }
+            }
+        }
+        EOF
         
     - name: Create debug keystore and ProGuard rules
       run: |
@@ -761,11 +1269,24 @@ jobs:
       run: |
         cd android
         
+        # Ensure ANDROID_HOME is set correctly
+        export ANDROID_HOME=$ANDROID_HOME
+        export ANDROID_SDK_ROOT=$ANDROID_HOME
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        
+        echo "Android SDK setup:"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+        
         # Install compatible Gradle version
         gradle wrapper --gradle-version 8.5 --distribution-type all
         
+        # Ensure wrapper is executable
+        chmod +x gradlew
+        
         # Validate Gradle configuration
-        ./gradlew tasks --quiet
+        echo "Running Gradle tasks validation..."
+        ./gradlew tasks --quiet --warning-mode all
         
         # Check for any configuration issues
         ./gradlew dependencies --configuration implementation --quiet || echo "Dependencies check completed"
@@ -776,6 +1297,10 @@ jobs:
         
         echo "Gradle build configuration:"
         cat gradle/wrapper/gradle-wrapper.properties
+        
+        # Test Android SDK integration
+        echo "Testing Android SDK integration..."
+        ./gradlew :app:preBuild --dry-run
         
     - name: Build Android APK with full optimization
       run: |
