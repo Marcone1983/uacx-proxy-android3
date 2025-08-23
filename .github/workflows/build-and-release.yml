@@ -1433,74 +1433,117 @@ jobs:
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     
     steps:
-    - name: Download all artifacts
+    - name: 📥 Download All Artifacts
       uses: actions/download-artifact@v4
-      
-    - name: Create release assets
-      run: |
-        mkdir release-assets
-        
-        # Copy all platform executables
-        cp smartcache-linux/* release-assets/ 2>/dev/null || echo "Linux build not available"
-        cp smartcache-windows/* release-assets/ 2>/dev/null || echo "Windows build not available"  
-        cp smartcache-macos/* release-assets/ 2>/dev/null || echo "macOS build not available"
-        cp smartcache-android-enterprise/*.apk release-assets/ 2>/dev/null || echo "Android APK not available"
-        cp smartcache-android-enterprise/apk-checksums.txt release-assets/ 2>/dev/null || true
-        
-        # Create release info
-        echo "SmartCache Enterprise - Universal AI Caching System" > release-assets/README.txt
-        echo "Built on $(date)" >> release-assets/README.txt
-        echo "Commit: $GITHUB_SHA" >> release-assets/README.txt
-        
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      if: github.event_name == 'release'
       with:
-        files: release-assets/*
-        body: |
-          ## SmartCache Enterprise - Complete Build
-          
-          ### 🚀 What's New
-          - Universal AI API interception (OpenAI, Anthropic, Google, Cohere, HuggingFace)
-          - Federated caching system with Supabase central sync
-          - Enterprise-grade Android APK with embedded Node.js runtime
-          - SQLite native compilation for all platforms
-          - Real-time dashboard with local + global statistics
-          - Multi-level interception (Runtime, System Proxy, Browser Extension)
-          - Auto-propagation across enterprise networks
-          
-          ### 📦 Downloads
-          - **Windows Enterprise**: `smartcache-windows.exe` (Native SQLite, AD deployment ready)
-          - **Linux Enterprise**: `smartcache-linux` (Native SQLite, SSH deployment ready)
-          - **macOS Enterprise**: `smartcache-macos` (Native SQLite, Uniform deployment ready)
-          - **Android Enterprise APK**: `app-release.apk` (Node.js embedded, SQLite native)
-          - **Android Debug APK**: `app-debug.apk` (Development version with logging)
-          - **APK Checksums**: `apk-checksums.txt` (Security verification)
-          
-          ### 🔧 Installation
-          1. Download the appropriate version for your platform
-          2. Copy `.env.example` to `.env` and configure Supabase credentials
-          3. Run the executable or install APK
-          4. Access dashboard at http://localhost:3000
-          
-          Built automatically with GitHub Actions ✨
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        path: artifacts
+      
+    - name: 📦 Organize Release Assets
+      run: |
+        mkdir -p organized-release
+        echo "=== Downloaded artifacts structure ==="
+        find artifacts -type f -name "*" | head -20
         
-    - name: Upload to latest release (main branch)
-      if: github.ref == 'refs/heads/main'
+        # Handle executables (look for actual executable files)
+        echo "=== Processing executables ==="
+        find artifacts -name "*freeapi*" -type f | while read file; do
+          filename=$(basename "$file")
+          echo "Found executable: $filename"
+          cp "$file" organized-release/
+        done
+        
+        # Handle APK files specifically
+        echo "=== Processing APK files ==="
+        find artifacts -name "*.apk" -type f | while read file; do
+          # Get the variant from the path
+          if echo "$file" | grep -q "debug"; then
+            variant="debug"
+          elif echo "$file" | grep -q "master"; then
+            variant="master" 
+          else
+            variant="standard"
+          fi
+          
+          filename="freeapi-android-${variant}.apk"
+          echo "Found APK: $file -> $filename"
+          cp "$file" "organized-release/$filename"
+        done
+        
+        # Handle checksum files
+        echo "=== Processing checksums ==="
+        find artifacts -name "*checksum*" -o -name "*sha256*" | while read file; do
+          cp "$file" organized-release/
+        done
+        
+        # Create release info with enterprise branding
+        cat > organized-release/README.txt << 'EOF'
+# FreeApi Enterprise - Universal AI Acceleration System
+## Powered and builded by 420White,LLC
+
+### Platform Downloads:
+- Windows: freeapi-windows-x64.exe
+- Linux: freeapi-linux-x64  
+- macOS: freeapi-macos-x64
+- Android Standard: freeapi-android-standard.apk (Public users - local cache + federated sync)
+- Android Master: freeapi-android-master.apk (Admin - direct worldwide database access)
+- Android Debug: freeapi-android-debug.apk (Development version)
+
+### Quick Start:
+1. Download your platform version
+2. Copy .env.example to .env and configure
+3. Run executable or install APK
+4. Access dashboard at http://localhost:3000
+
+Built automatically with GitHub Actions
+EOF
+        
+        echo "=== Final release assets ==="
+        ls -la organized-release/
+        
+        # Add build metadata
+        echo "" >> organized-release/README.txt
+        echo "Built on: $(date)" >> organized-release/README.txt
+        echo "Commit: $GITHUB_SHA" >> organized-release/README.txt
+        echo "Workflow: $GITHUB_WORKFLOW" >> organized-release/README.txt
+        
+    - name: 🚀 Create Development Release
       uses: softprops/action-gh-release@v1
+      if: github.ref == 'refs/heads/main'
       with:
         tag_name: "latest"
-        name: "Latest Development Build"
-        files: release-assets/*
+        name: "FreeApi Latest - Powered by 420White,LLC"
+        files: organized-release/*
         prerelease: true
         body: |
-          ## Latest Development Build
+          # 🚀 FreeApi Enterprise - Latest Development Build
+          ## Powered and builded by 420White,LLC
           
-          This is an automated build from the main branch.
-          Contains the latest features and improvements.
+          ### ✨ Features
+          - 🔥 Universal AI API interception (OpenAI, Anthropic, Google, Cohere, etc.)
+          - 🌐 Federated caching system with Supabase central synchronization
+          - 📱 Enterprise Android APK with embedded Node.js runtime
+          - 💾 Native SQLite compilation for all platforms
+          - 📊 Real-time dashboard with local + global statistics
+          - 🔄 Multi-level interception (Runtime, System Proxy, Browser Extension)
+          - 🏢 Enterprise network auto-propagation
+          - 🌍 Multilingual support (Italian, English, Spanish, French, German)
           
-          **⚠️ Development Build**: May contain unstable features.
+          ### 📦 Downloads
+          - **Windows**: `freeapi-windows-x64.exe` (Native SQLite, AD deployment ready)
+          - **Linux**: `freeapi-linux-x64` (Native SQLite, SSH deployment ready)
+          - **macOS**: `freeapi-macos-x64` (Native SQLite, Mass deployment ready)
+          - **Android Standard**: `freeapi-android-standard.apk` (Public users - local + federated sync)
+          - **Android Master**: `freeapi-android-master.apk` (Admin - direct worldwide database)
+          - **Android Debug**: `freeapi-android-debug.apk` (Development with full logging)
+          
+          ### ⚡ Quick Start
+          1. Download your platform version
+          2. Copy `.env.example` to `.env` and configure Supabase
+          3. Run executable or install APK
+          4. Access dashboard at http://localhost:3000
+          
+          **⚠️ Latest Development Build**: Contains cutting-edge features
+          
+          🤖 Built automatically with GitHub Actions
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
