@@ -116,12 +116,29 @@ jobs:
         npm install
         npm rebuild
         
-    - name: Copy Node.js project to Android assets
+    - name: Download Node.js for Android and copy project
       run: |
+        # Download Node.js binary for Android ARM64
+        mkdir -p android/app/src/main/assets/nodejs-project/bin
+        wget https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-arm64.tar.gz
+        tar -xzf node-v20.18.0-linux-arm64.tar.gz
+        cp node-v20.18.0-linux-arm64/bin/node android/app/src/main/assets/nodejs-project/bin/
+        chmod +x android/app/src/main/assets/nodejs-project/bin/node
+        
+        # Copy Node.js project files
         cp -r src android/app/src/main/assets/nodejs-project/
         cp -r node_modules android/app/src/main/assets/nodejs-project/
         cp package.json android/app/src/main/assets/nodejs-project/
         cp .env.example android/app/src/main/assets/nodejs-project/
+        
+        # Create startup script
+        cat > android/app/src/main/assets/nodejs-project/start.sh << 'EOF'
+        #!/system/bin/sh
+        export NODE_PATH="./node_modules"
+        export HOME="."
+        ./bin/node src/smartcache.js
+        EOF
+        chmod +x android/app/src/main/assets/nodejs-project/start.sh
         
     - name: Generate Android manifest
       run: |
@@ -213,13 +230,16 @@ jobs:
         import android.app.NotificationManager;
         import android.app.Service;
         import android.content.Intent;
+        import android.content.res.AssetManager;
         import android.os.Build;
         import android.os.IBinder;
+        import android.util.Log;
         import java.io.*;
         import java.util.concurrent.ExecutorService;
         import java.util.concurrent.Executors;
         
         public class SmartCacheService extends Service {
+            private static final String TAG = "SmartCacheService";
             private static final String CHANNEL_ID = "SmartCacheChannel";
             private static final int NOTIFICATION_ID = 1;
             private ExecutorService executor;
@@ -245,7 +265,7 @@ jobs:
                         startNodeProcess();
                         
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        Log.e(TAG, "Failed to start SmartCache", e);
                     }
                 });
                 
@@ -253,22 +273,96 @@ jobs:
             }
             
             private void extractNodeProject() throws IOException {
-                // Implementation to extract Node.js project from assets to internal storage
                 File projectDir = new File(getFilesDir(), "nodejs-project");
-                if (!projectDir.exists()) {
-                    projectDir.mkdirs();
-                    // Copy assets to internal storage
+                if (projectDir.exists()) {
+                    Log.i(TAG, "Node.js project already extracted");
+                    return;
+                }
+                
+                Log.i(TAG, "Extracting Node.js project from assets...");
+                copyAssets("nodejs-project", projectDir);
+                
+                // Set executable permissions for Node.js binary
+                File nodeExecutable = new File(projectDir, "bin/node");
+                if (nodeExecutable.exists()) {
+                    nodeExecutable.setExecutable(true, false);
+                    Log.i(TAG, "Node.js executable permissions set");
+                }
+                
+                // Set executable permissions for start script
+                File startScript = new File(projectDir, "start.sh");
+                if (startScript.exists()) {
+                    startScript.setExecutable(true, false);
+                    Log.i(TAG, "Start script permissions set");
+                }
+            }
+            
+            private void copyAssets(String assetPath, File targetDir) throws IOException {
+                AssetManager assetManager = getAssets();
+                String[] files = assetManager.list(assetPath);
+                
+                if (!targetDir.exists()) {
+                    targetDir.mkdirs();
+                }
+                
+                if (files != null && files.length > 0) {
+                    // It's a directory
+                    for (String file : files) {
+                        copyAssets(assetPath + "/" + file, new File(targetDir, file));
+                    }
+                } else {
+                    // It's a file
+                    try (InputStream in = assetManager.open(assetPath);
+                         FileOutputStream out = new FileOutputStream(targetDir)) {
+                        byte[] buffer = new byte[1024];
+                        int read;
+                        while ((read = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, read);
+                        }
+                    }
                 }
             }
             
             private void startNodeProcess() throws IOException {
-                File nodeExecutable = new File(getFilesDir(), "nodejs-project/node");
-                File smartcacheScript = new File(getFilesDir(), "nodejs-project/src/smartcache.js");
+                File projectDir = new File(getFilesDir(), "nodejs-project");
+                File nodeExecutable = new File(projectDir, "bin/node");
+                File smartcacheScript = new File(projectDir, "src/smartcache.js");
                 
-                ProcessBuilder pb = new ProcessBuilder(nodeExecutable.getAbsolutePath(), smartcacheScript.getAbsolutePath());
-                pb.directory(new File(getFilesDir(), "nodejs-project"));
+                if (!nodeExecutable.exists()) {
+                    Log.e(TAG, "Node.js executable not found: " + nodeExecutable.getAbsolutePath());
+                    return;
+                }
+                
+                if (!smartcacheScript.exists()) {
+                    Log.e(TAG, "SmartCache script not found: " + smartcacheScript.getAbsolutePath());
+                    return;
+                }
+                
+                Log.i(TAG, "Starting Node.js process...");
+                
+                ProcessBuilder pb = new ProcessBuilder(
+                    nodeExecutable.getAbsolutePath(),
+                    smartcacheScript.getAbsolutePath()
+                );
+                pb.directory(projectDir);
+                pb.environment().put("NODE_PATH", new File(projectDir, "node_modules").getAbsolutePath());
+                pb.environment().put("HOME", projectDir.getAbsolutePath());
                 
                 nodeProcess = pb.start();
+                
+                // Log Node.js output for debugging
+                new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(nodeProcess.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            Log.i(TAG, "Node.js: " + line);
+                        }
+                    } catch (IOException e) {
+                        Log.e(TAG, "Error reading Node.js output", e);
+                    }
+                }).start();
+                
+                Log.i(TAG, "SmartCache Node.js process started");
             }
             
             private Notification createNotification() {
@@ -309,11 +403,51 @@ jobs:
         }
         EOF
         
-    - name: Create build.gradle
+    - name: Create build.gradle and settings.gradle
       run: |
+        # Create settings.gradle first
+        cat > android/settings.gradle << 'EOF'
+        pluginManagement {
+            repositories {
+                gradlePluginPortal()
+                google()
+                mavenCentral()
+            }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        
+        rootProject.name = "SmartCache"
+        include ':app'
+        EOF
+        
+        # Create root build.gradle
         cat > android/build.gradle << 'EOF'
+        buildscript {
+            repositories {
+                gradlePluginPortal()
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.4'
+            }
+        }
+        
         plugins {
-            id 'com.android.application' version '8.1.0' apply false
+            id 'com.android.application' version '8.1.4' apply false
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
         }
         EOF
         
@@ -332,30 +466,101 @@ jobs:
                 targetSdk 34
                 versionCode 1
                 versionName "1.0"
+                testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
             }
             
             buildTypes {
                 release {
                     minifyEnabled false
                     proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                    signingConfig signingConfigs.debug
+                }
+                debug {
+                    applicationIdSuffix ".debug"
+                    debuggable true
                 }
             }
             
             compileOptions {
-                sourceCompatibility JavaVersion.VERSION_1_8
-                targetCompatibility JavaVersion.VERSION_1_8
+                sourceCompatibility JavaVersion.VERSION_11
+                targetCompatibility JavaVersion.VERSION_11
+            }
+            
+            packagingOptions {
+                pickFirst '**/libc++_shared.so'
+                pickFirst '**/libjsc.so'
             }
         }
         
         dependencies {
             implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.core:core:1.12.0'
+            implementation 'androidx.webkit:webkit:1.8.0'
         }
         EOF
+        
+    - name: Create gradle.properties and resources
+      run: |
+        # Create gradle.properties
+        cat > android/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        org.gradle.parallel=true
+        org.gradle.caching=true
+        org.gradle.configureondemand=true
+        android.useAndroidX=true
+        android.enableJetifier=true
+        android.defaults.buildfeatures.buildconfig=true
+        android.nonTransitiveRClass=false
+        android.nonFinalResIds=false
+        EOF
+        
+        # Create app resources
+        mkdir -p android/app/src/main/res/values
+        mkdir -p android/app/src/main/res/mipmap-hdpi
+        mkdir -p android/app/src/main/res/mipmap-mdpi
+        mkdir -p android/app/src/main/res/mipmap-xhdpi
+        mkdir -p android/app/src/main/res/mipmap-xxhdpi
+        mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+        
+        # Create strings.xml
+        cat > android/app/src/main/res/values/strings.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <string name="app_name">SmartCache Enterprise</string>
+        </resources>
+        EOF
+        
+        # Create styles.xml
+        cat > android/app/src/main/res/values/styles.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="colorPrimary">#4CAF50</item>
+                <item name="colorPrimaryDark">#388E3C</item>
+                <item name="colorAccent">#FF5722</item>
+            </style>
+        </resources>
+        EOF
+        
+        # Create app icons using ImageMagick
+        sudo apt-get install -y imagemagick
+        
+        # Create base icon
+        convert -size 512x512 xc:"#4CAF50" -fill white -gravity center \
+                -font Liberation-Sans-Bold -pointsize 72 -annotate +0+0 "SC" \
+                android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+        
+        # Generate different sizes
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 192x192 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 144x144 android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 96x96 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
         
     - name: Create gradle wrapper
       run: |
         cd android
-        gradle wrapper --gradle-version 8.3
+        # Use Gradle wrapper from GitHub Actions
+        gradle wrapper --gradle-version 8.5 --distribution-type all
         
     - name: Build Android APK
       run: |
