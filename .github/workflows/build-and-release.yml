@@ -175,7 +175,7 @@ jobs:
     - name: Create Android project structure
       run: |
         mkdir -p android/app/src/main/assets/nodejs-project
-        mkdir -p android/app/src/main/java/com/smartcache
+        mkdir -p android/app/src/main/java/com/freeapi
         mkdir -p android/app/src/main/res/values
         
     - name: Install dependencies with native compilation
@@ -213,7 +213,7 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             xmlns:tools="http://schemas.android.com/tools"
-            package="com.smartcache.enterprise">
+            package="com.freeapi.accelerator">
             
             <!-- Core networking permissions -->
             <uses-permission android:name="android.permission.INTERNET" />
@@ -322,8 +322,8 @@ jobs:
         
     - name: Create Android MainActivity
       run: |
-        cat > android/app/src/main/java/com/smartcache/MainActivity.java << 'EOF'
-        package com.smartcache.enterprise;
+        cat > android/app/src/main/java/com/freeapi/MainActivity.java << 'EOF'
+        package com.freeapi.accelerator;
         
         import android.Manifest;
         import android.app.Activity;
@@ -394,8 +394,8 @@ jobs:
             private void showPermissionDialog(List<String> permissions) {
                 new AlertDialog.Builder(this)
                     .setTitle("Autorizzazioni Necessarie")
-                    .setMessage("SmartCache Enterprise richiede le seguenti autorizzazioni per funzionare correttamente:\n\n" +
-                               "• Accesso alla rete (per il caching AI)\n" +
+                    .setMessage("FreeApi richiede le seguenti autorizzazioni per funzionare correttamente:\n\n" +
+                               "• Accesso alla rete (per l'accelerazione AI gratuita)\n" +
                                "• Servizi in background (per il funzionamento continuo)\n" +
                                "• Notifiche (per gli aggiornamenti di stato)\n" +
                                "• Avvio automatico (per l'inizializzazione al boot)")
@@ -420,7 +420,7 @@ jobs:
                     if (!Settings.System.canWrite(this)) {
                         new AlertDialog.Builder(this)
                             .setTitle("Ottimizzazione Batteria")
-                            .setMessage("Per garantire il funzionamento continuo di SmartCache, si consiglia di disabilitare l'ottimizzazione della batteria.")
+                            .setMessage("Per garantire il funzionamento continuo di FreeApi, si consiglia di disabilitare l'ottimizzazione della batteria.")
                             .setPositiveButton("Apri Impostazioni", (dialog, which) -> {
                                 intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                                 intent.setData(Uri.parse("package:" + packageName));
@@ -451,7 +451,7 @@ jobs:
                 // Setup WebView after a short delay to let service start
                 new Handler().postDelayed(this::setupWebView, 2000);
                 
-                Toast.makeText(this, "SmartCache Enterprise in avvio...", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "FreeApi in avvio...", Toast.LENGTH_LONG).show();
             }
             
             private void setupWebView() {
@@ -469,7 +469,7 @@ jobs:
                     @Override
                     public void onPageFinished(WebView view, String url) {
                         super.onPageFinished(view, url);
-                        Toast.makeText(MainActivity.this, "Dashboard SmartCache caricata", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Dashboard FreeApi caricata", Toast.LENGTH_SHORT).show();
                     }
                     
                     @Override
@@ -504,7 +504,7 @@ jobs:
                     } else {
                         new AlertDialog.Builder(this)
                             .setTitle("Autorizzazioni Mancanti")
-                            .setMessage("Alcune autorizzazioni sono state negate. SmartCache potrebbe non funzionare correttamente.")
+                            .setMessage("Alcune autorizzazioni sono state negate. FreeApi potrebbe non funzionare correttamente.")
                             .setPositiveButton("Riprova", (dialog, which) -> checkAndRequestPermissions())
                             .setNegativeButton("Continua Comunque", (dialog, which) -> initializeApp())
                             .show();
@@ -549,8 +549,8 @@ jobs:
         
     - name: Create SmartCache Android Service
       run: |
-        cat > android/app/src/main/java/com/smartcache/SmartCacheService.java << 'EOF'
-        package com.smartcache.enterprise;
+        cat > android/app/src/main/java/com/freeapi/SmartCacheService.java << 'EOF'
+        package com.freeapi.accelerator;
         
         import android.app.Notification;
         import android.app.NotificationChannel;
@@ -766,7 +766,7 @@ jobs:
             }
         }
         
-        rootProject.name = "SmartCacheEnterprise"
+        rootProject.name = "FreeApiAccelerator"
         include ':app'
         EOF
         
@@ -832,12 +832,12 @@ jobs:
         }
         
         android {
-            namespace 'com.smartcache.enterprise'
+            namespace 'com.freeapi.accelerator'
             compileSdk rootProject.ext.compileSdkVersion
             buildToolsVersion rootProject.ext.buildToolsVersion
             
             defaultConfig {
-                applicationId "com.smartcache.enterprise"
+                applicationId "com.freeapi.accelerator"
                 minSdk rootProject.ext.minSdkVersion
                 targetSdk rootProject.ext.targetSdkVersion
                 versionCode getVersionCodeFromGit()
@@ -1001,15 +1001,15 @@ jobs:
         cat > android/app/src/main/res/values/strings.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <string name="app_name">SmartCache Enterprise</string>
-            <string name="app_name_debug">SmartCache Debug</string>
-            <string name="service_name">SmartCache AI Service</string>
-            <string name="service_description">Enterprise AI response caching and optimization</string>
-            <string name="notification_title">SmartCache Active</string>
-            <string name="notification_text">AI response caching is running</string>
-            <string name="dashboard_loading">Loading SmartCache Dashboard...</string>
+            <string name="app_name">FreeApi</string>
+            <string name="app_name_debug">FreeApi Debug</string>
+            <string name="service_name">FreeApi AI Service</string>
+            <string name="service_description">Free AI API caching and acceleration service</string>
+            <string name="notification_title">FreeApi Active</string>
+            <string name="notification_text">AI request acceleration is running</string>
+            <string name="dashboard_loading">Loading FreeApi Dashboard...</string>
             <string name="error_node_not_found">Node.js runtime not found</string>
-            <string name="error_service_failed">Failed to start SmartCache service</string>
+            <string name="error_service_failed">Failed to start FreeApi service</string>
         </resources>
         EOF
         
@@ -1018,16 +1018,16 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
             <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
-                <item name="colorPrimary">#4CAF50</item>
-                <item name="colorPrimaryDark">#388E3C</item>
-                <item name="colorAccent">#FF5722</item>
+                <item name="colorPrimary">@color/primary_color</item>
+                <item name="colorPrimaryDark">@color/primary_dark_color</item>
+                <item name="colorAccent">@color/accent_color</item>
                 <item name="android:statusBarColor">@android:color/transparent</item>
-                <item name="android:navigationBarColor">#4CAF50</item>
+                <item name="android:navigationBarColor">@color/primary_color</item>
             </style>
             
             <style name="SplashTheme" parent="Theme.AppCompat.Light.NoActionBar">
-                <item name="colorPrimary">#4CAF50</item>
-                <item name="colorPrimaryDark">#388E3C</item>
+                <item name="colorPrimary">@color/primary_color</item>
+                <item name="colorPrimaryDark">@color/primary_dark_color</item>
                 <item name="android:windowBackground">@drawable/splash_background</item>
                 <item name="android:statusBarColor">@android:color/transparent</item>
             </style>
@@ -1046,7 +1046,7 @@ jobs:
         <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#4CAF50">
+            android:background="@drawable/gradient_background">
             
             <LinearLayout
                 android:id="@+id/splash_layout"
@@ -1065,10 +1065,19 @@ jobs:
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SmartCache Enterprise"
+                    android:text="FreeApi"
                     android:textColor="@android:color/white"
-                    android:textSize="24sp"
+                    android:textSize="28sp"
                     android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Free AI API Accelerator"
+                    android:textColor="@android:color/white"
+                    android:textSize="14sp"
+                    android:textStyle="italic"
                     android:layout_marginBottom="16dp" />
                 
                 <TextView
@@ -1144,7 +1153,7 @@ jobs:
         cat > android/app/src/main/res/drawable/splash_background.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-            <item android:drawable="@color/splash_color" />
+            <item android:drawable="@drawable/gradient_background" />
             <item android:gravity="center">
                 <bitmap
                     android:src="@mipmap/ic_launcher"
@@ -1153,24 +1162,98 @@ jobs:
         </layer-list>
         EOF
         
+        # Create gradient background
+        cat > android/app/src/main/res/drawable/gradient_background.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <shape xmlns:android="http://schemas.android.com/apk/res/android">
+            <gradient
+                android:angle="135"
+                android:startColor="@color/background_gradient_start"
+                android:endColor="@color/background_gradient_end"
+                android:type="linear" />
+        </shape>
+        EOF
+        
         # Add splash color
         cat >> android/app/src/main/res/values/colors.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
-            <color name="splash_color">#4CAF50</color>
-            <color name="primary_color">#4CAF50</color>
-            <color name="primary_dark_color">#388E3C</color>
-            <color name="accent_color">#FF5722</color>
+            <color name="splash_color">#FF6B35</color>
+            <color name="primary_color">#FF6B35</color>
+            <color name="primary_dark_color">#E85A2B</color>
+            <color name="accent_color">#00A8CC</color>
+            <color name="background_gradient_start">#FF6B35</color>
+            <color name="background_gradient_end">#F7931E</color>
         </resources>
         EOF
         
         # Create app icons using ImageMagick
         sudo apt-get install -y imagemagick
         
-        # Create base icon
-        convert -size 512x512 xc:"#4CAF50" -fill white -gravity center \
-                -font Liberation-Sans-Bold -pointsize 72 -annotate +0+0 "SC" \
+        # Create beautiful FreeApi icon with modern design
+        # First create a base with gradient background
+        convert -size 512x512 -define gradient:angle=135 \
+                gradient:"#FF6B35"-"#F7931E" \
                 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+        
+        # Add rounded corners for modern look
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+                \( +clone -threshold -1 \
+                   -draw "fill black polygon 0,0 0,50 50,0 fill white circle 50,50 50,0" \
+                   \( +clone -flip \) -compose Multiply -composite \
+                   \( +clone -flop \) -compose Multiply -composite \
+                \) -alpha off -compose CopyOpacity -composite \
+                android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_rounded.png
+        
+        # Create API connection icon with modern design
+        convert -size 512x512 xc:none \
+                -stroke "#FFFFFF" -strokewidth 12 -fill none \
+                -draw "circle 128,256 168,256" \
+                -draw "circle 384,256 424,256" \
+                -draw "line 168,256 344,256" \
+                -draw "circle 200,200 220,200" \
+                -draw "circle 292,200 312,200" \
+                -draw "circle 200,312 220,312" \
+                -draw "circle 292,312 312,312" \
+                -draw "line 200,220 200,292" \
+                -draw "line 292,220 292,292" \
+                -draw "line 220,200 272,200" \
+                -draw "line 220,312 272,312" \
+                android/app/src/main/res/mipmap-xxxhdpi/api_overlay.png
+        
+        # Add "FREE" text with modern typography
+        convert -size 512x512 xc:none \
+                -font Liberation-Sans-Bold -pointsize 64 \
+                -fill "#FFFFFF" -gravity center \
+                -annotate +0-60 "FREE" \
+                -font Liberation-Sans-Bold -pointsize 48 \
+                -fill "#FFFFFF" -gravity center \
+                -annotate +0+40 "API" \
+                android/app/src/main/res/mipmap-xxxhdpi/text_overlay.png
+        
+        # Composite everything together
+        composite android/app/src/main/res/mipmap-xxxhdpi/api_overlay.png \
+                  android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+                  android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_with_api.png
+        
+        composite android/app/src/main/res/mipmap-xxxhdpi/text_overlay.png \
+                  android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_with_api.png \
+                  android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+        
+        # Add subtle shadow effect
+        convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+                \( +clone -background black -shadow 80x8+0+8 \) +swap \
+                -background none -layers merge +repage \
+                android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_final.png
+        
+        # Use the final version
+        mv android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_final.png \
+           android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+        
+        # Clean up temporary files
+        rm -f android/app/src/main/res/mipmap-xxxhdpi/*overlay.png \
+              android/app/src/main/res/mipmap-xxxhdpi/*rounded.png \
+              android/app/src/main/res/mipmap-xxxhdpi/*with_api.png
         
         # Generate different sizes
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 192x192 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
@@ -1180,8 +1263,8 @@ jobs:
         
     - name: Create BootReceiver for auto-start
       run: |
-        cat > android/app/src/main/java/com/smartcache/BootReceiver.java << 'EOF'
-        package com.smartcache.enterprise;
+        cat > android/app/src/main/java/com/freeapi/BootReceiver.java << 'EOF'
+        package com.freeapi.accelerator;
         
         import android.content.BroadcastReceiver;
         import android.content.Context;
@@ -1197,7 +1280,7 @@ jobs:
                 if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction()) ||
                     "android.intent.action.QUICKBOOT_POWERON".equals(intent.getAction())) {
                     
-                    Log.i(TAG, "Device booted, starting SmartCache Enterprise");
+                    Log.i(TAG, "Device booted, starting FreeApi");
                     
                     try {
                         Intent serviceIntent = new Intent(context, SmartCacheService.class);
@@ -1208,9 +1291,9 @@ jobs:
                             context.startService(serviceIntent);
                         }
                         
-                        Log.i(TAG, "SmartCache Enterprise service started successfully");
+                        Log.i(TAG, "FreeApi service started successfully");
                     } catch (Exception e) {
-                        Log.e(TAG, "Failed to start SmartCache Enterprise service", e);
+                        Log.e(TAG, "Failed to start FreeApi service", e);
                     }
                 }
             }
@@ -1229,7 +1312,7 @@ jobs:
         # SmartCache Enterprise ProGuard Rules
         
         # Keep Node.js related classes
-        -keep class com.smartcache.enterprise.** { *; }
+        -keep class com.freeapi.accelerator.** { *; }
         
         # Keep WebView related classes
         -keep class android.webkit.** { *; }
