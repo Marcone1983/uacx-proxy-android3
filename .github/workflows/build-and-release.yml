@@ -1476,26 +1476,26 @@ jobs:
         done
         
         # Create release info with enterprise branding
-        cat > organized-release/README.txt << 'EOF'
-# FreeApi Enterprise - Universal AI Acceleration System
-## Powered and builded by 420White,LLC
-
-### Platform Downloads:
-- Windows: freeapi-windows-x64.exe
-- Linux: freeapi-linux-x64  
-- macOS: freeapi-macos-x64
-- Android Standard: freeapi-android-standard.apk (Public users - local cache + federated sync)
-- Android Master: freeapi-android-master.apk (Admin - direct worldwide database access)
-- Android Debug: freeapi-android-debug.apk (Development version)
-
-### Quick Start:
-1. Download your platform version
-2. Copy .env.example to .env and configure
-3. Run executable or install APK
-4. Access dashboard at http://localhost:3000
-
-Built automatically with GitHub Actions
-EOF
+        cat > organized-release/README.txt << 'ENDFILE'
+        FreeApi Enterprise - Universal AI Acceleration System
+        Powered and builded by 420White,LLC
+        
+        Platform Downloads:
+        Windows: freeapi-windows-x64.exe
+        Linux: freeapi-linux-x64  
+        macOS: freeapi-macos-x64
+        Android Standard: freeapi-android-standard.apk
+        Android Master: freeapi-android-master.apk  
+        Android Debug: freeapi-android-debug.apk
+        
+        Quick Start:
+        1. Download your platform version
+        2. Copy .env.example to .env and configure
+        3. Run executable or install APK
+        4. Access dashboard at http://localhost:3000
+        
+        Built automatically with GitHub Actions
+        ENDFILE
         
         echo "=== Final release assets ==="
         ls -la organized-release/
