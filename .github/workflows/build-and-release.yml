@@ -112,6 +112,9 @@ jobs:
 
   build-android-apk:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [debug, standard, master]
     
     steps:
     - name: Checkout repository
@@ -320,7 +323,7 @@ jobs:
         </manifest>
         EOF
         
-    - name: Create Android MainActivity
+    - name: Create Android MainActivity with Language Selection
       run: |
         cat > android/app/src/main/java/com/freeapi/MainActivity.java << 'EOF'
         package com.freeapi.accelerator;
@@ -329,27 +332,48 @@ jobs:
         import android.app.Activity;
         import android.app.AlertDialog;
         import android.content.Intent;
+        import android.content.SharedPreferences;
         import android.content.pm.PackageManager;
+        import android.graphics.Color;
+        import android.graphics.Typeface;
         import android.net.Uri;
         import android.os.Build;
         import android.os.Bundle;
         import android.os.Handler;
         import android.provider.Settings;
+        import android.view.Gravity;
+        import android.view.View;
         import android.webkit.WebChromeClient;
         import android.webkit.WebView;
         import android.webkit.WebViewClient;
+        import android.widget.Button;
+        import android.widget.ImageView;
+        import android.widget.LinearLayout;
+        import android.widget.ProgressBar;
+        import android.widget.TextView;
         import android.widget.Toast;
         import androidx.core.app.ActivityCompat;
         import androidx.core.content.ContextCompat;
+        import java.lang.reflect.Field;
         import java.util.ArrayList;
+        import java.util.HashMap;
         import java.util.List;
+        import java.util.Locale;
+        import java.util.Map;
         
         public class MainActivity extends Activity {
             private WebView webView;
-            private static final int PERMISSIONS_REQUEST_CODE = 1000;
-            private static final int BATTERY_OPTIMIZATION_REQUEST = 1001;
-            private static final int NOTIFICATION_PERMISSION_REQUEST = 1002;
+            private LinearLayout splashLayout;
+            private LinearLayout languageLayout;
+            private TextView statusText;
+            private ProgressBar progressBar;
+            private SharedPreferences prefs;
+            private boolean isMasterVersion = false;
+            private String selectedLanguage = "it";
+            private int retryCount = 0;
+            private final int MAX_RETRIES = 10;
             
+            private static final int PERMISSIONS_REQUEST_CODE = 1000;
             private static final String[] REQUIRED_PERMISSIONS = {
                 Manifest.permission.INTERNET,
                 Manifest.permission.ACCESS_NETWORK_STATE,
@@ -359,25 +383,254 @@ jobs:
                 Manifest.permission.RECEIVE_BOOT_COMPLETED
             };
             
+            private Map<String, Map<String, String>> translations = new HashMap<>();
+            
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 
-                // Check and request permissions first
-                checkAndRequestPermissions();
+                prefs = getSharedPreferences("FreeApiPrefs", MODE_PRIVATE);
+                selectedLanguage = prefs.getString("language", "it");
+                
+                initializeTranslations();
+                detectVersionType();
+                createSplashUI();
+                
+                if (prefs.contains("language")) {
+                    checkAndRequestPermissions();
+                } else {
+                    showLanguageSelection();
+                }
+            }
+            
+            private void initializeTranslations() {
+                Map<String, String> italian = new HashMap<>();
+                italian.put("welcome", "Benvenuto in FreeApi");
+                italian.put("select_language", "Seleziona la tua lingua");
+                italian.put("powered_by", "Powered and builded by 420White,LLC");
+                italian.put("ai_accelerator", "Acceleratore AI Gratuito");
+                italian.put("version_standard", "Versione Standard - Cache Locale + Sync Federato");
+                italian.put("version_master", "Versione Master - Accesso Database Mondiale");
+                italian.put("loading", "Caricamento in corso...");
+                italian.put("connecting", "Connessione al server...");
+                italian.put("permissions_required", "Autorizzazioni Necessarie");
+                italian.put("grant_permissions", "Concedi Autorizzazioni");
+                italian.put("continue", "Continua");
+                
+                Map<String, String> english = new HashMap<>();
+                english.put("welcome", "Welcome to FreeApi");
+                english.put("select_language", "Select your language");
+                english.put("powered_by", "Powered and builded by 420White,LLC");
+                english.put("ai_accelerator", "Free AI Accelerator");
+                english.put("version_standard", "Standard Version - Local Cache + Federated Sync");
+                english.put("version_master", "Master Version - Worldwide Database Access");
+                english.put("loading", "Loading...");
+                english.put("connecting", "Connecting to server...");
+                english.put("permissions_required", "Permissions Required");
+                english.put("grant_permissions", "Grant Permissions");
+                english.put("continue", "Continue");
+                
+                Map<String, String> spanish = new HashMap<>();
+                spanish.put("welcome", "Bienvenido a FreeApi");
+                spanish.put("select_language", "Selecciona tu idioma");
+                spanish.put("powered_by", "Powered and builded by 420White,LLC");
+                spanish.put("ai_accelerator", "Acelerador AI Gratuito");
+                spanish.put("version_standard", "Versión Estándar - Caché Local + Sync Federado");
+                spanish.put("version_master", "Versión Master - Acceso Base de Datos Mundial");
+                spanish.put("loading", "Cargando...");
+                spanish.put("connecting", "Conectando al servidor...");
+                spanish.put("permissions_required", "Permisos Requeridos");
+                spanish.put("grant_permissions", "Conceder Permisos");
+                spanish.put("continue", "Continuar");
+                
+                Map<String, String> french = new HashMap<>();
+                french.put("welcome", "Bienvenue dans FreeApi");
+                french.put("select_language", "Sélectionnez votre langue");
+                french.put("powered_by", "Powered and builded by 420White,LLC");
+                french.put("ai_accelerator", "Accélérateur AI Gratuit");
+                french.put("version_standard", "Version Standard - Cache Local + Sync Fédéré");
+                french.put("version_master", "Version Master - Accès Base de Données Mondiale");
+                french.put("loading", "Chargement...");
+                french.put("connecting", "Connexion au serveur...");
+                french.put("permissions_required", "Autorisations Requises");
+                french.put("grant_permissions", "Accorder les Autorisations");
+                french.put("continue", "Continuer");
+                
+                Map<String, String> german = new HashMap<>();
+                german.put("welcome", "Willkommen bei FreeApi");
+                german.put("select_language", "Wählen Sie Ihre Sprache");
+                german.put("powered_by", "Powered and builded by 420White,LLC");
+                german.put("ai_accelerator", "Kostenloser AI-Beschleuniger");
+                german.put("version_standard", "Standard Version - Lokaler Cache + Föderierte Sync");
+                german.put("version_master", "Master Version - Weltweiter Datenbankzugriff");
+                german.put("loading", "Laden...");
+                german.put("connecting", "Verbindung zum Server...");
+                german.put("permissions_required", "Berechtigungen Erforderlich");
+                german.put("grant_permissions", "Berechtigungen Erteilen");
+                german.put("continue", "Fortfahren");
+                
+                translations.put("it", italian);
+                translations.put("en", english);
+                translations.put("es", spanish);
+                translations.put("fr", french);
+                translations.put("de", german);
+            }
+            
+            private String getText(String key) {
+                Map<String, String> lang = translations.get(selectedLanguage);
+                return lang != null ? lang.get(key) : translations.get("en").get(key);
+            }
+            
+            private void detectVersionType() {
+                try {
+                    Class<?> buildConfigClass = Class.forName(getPackageName() + ".BuildConfig");
+                    Field isMasterField = buildConfigClass.getField("IS_MASTER");
+                    isMasterVersion = (Boolean) isMasterField.get(null);
+                    Log.i("MainActivity", "Version detected: " + (isMasterVersion ? "MASTER" : "STANDARD"));
+                } catch (Exception e) {
+                    Log.w("MainActivity", "Could not detect version type, defaulting to STANDARD", e);
+                    isMasterVersion = false;
+                }
+            }
+            
+            private void createSplashUI() {
+                LinearLayout mainLayout = new LinearLayout(this);
+                mainLayout.setOrientation(LinearLayout.VERTICAL);
+                mainLayout.setGravity(Gravity.CENTER);
+                mainLayout.setBackgroundColor(Color.parseColor("#FF6B35"));
+                mainLayout.setPadding(50, 50, 50, 50);
+                
+                // Logo placeholder
+                ImageView logo = new ImageView(this);
+                logo.setLayoutParams(new LinearLayout.LayoutParams(200, 200));
+                logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                mainLayout.addView(logo);
+                
+                // Title
+                TextView title = new TextView(this);
+                title.setText("FreeApi");
+                title.setTextSize(32);
+                title.setTextColor(Color.WHITE);
+                title.setTypeface(null, Typeface.BOLD);
+                title.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                titleParams.setMargins(0, 30, 0, 10);
+                title.setLayoutParams(titleParams);
+                mainLayout.addView(title);
+                
+                // Subtitle
+                TextView subtitle = new TextView(this);
+                subtitle.setText(getText("ai_accelerator"));
+                subtitle.setTextSize(16);
+                subtitle.setTextColor(Color.WHITE);
+                subtitle.setGravity(Gravity.CENTER);
+                mainLayout.addView(subtitle);
+                
+                // Version info
+                TextView versionInfo = new TextView(this);
+                versionInfo.setText(isMasterVersion ? getText("version_master") : getText("version_standard"));
+                versionInfo.setTextSize(14);
+                versionInfo.setTextColor(Color.parseColor("#FFE4B5"));
+                versionInfo.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams versionParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                versionParams.setMargins(0, 10, 0, 30);
+                versionInfo.setLayoutParams(versionParams);
+                mainLayout.addView(versionInfo);
+                
+                // Status text
+                statusText = new TextView(this);
+                statusText.setText(getText("loading"));
+                statusText.setTextSize(16);
+                statusText.setTextColor(Color.WHITE);
+                statusText.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                statusParams.setMargins(0, 20, 0, 20);
+                statusText.setLayoutParams(statusParams);
+                mainLayout.addView(statusText);
+                
+                // Progress bar
+                progressBar = new ProgressBar(this);
+                progressBar.setIndeterminate(true);
+                mainLayout.addView(progressBar);
+                
+                // Powered by
+                TextView poweredBy = new TextView(this);
+                poweredBy.setText(getText("powered_by"));
+                poweredBy.setTextSize(12);
+                poweredBy.setTextColor(Color.parseColor("#FFE4B5"));
+                poweredBy.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams poweredParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                poweredParams.setMargins(0, 50, 0, 0);
+                poweredBy.setLayoutParams(poweredParams);
+                mainLayout.addView(poweredBy);
+                
+                splashLayout = mainLayout;
+                setContentView(splashLayout);
+            }
+            
+            private void showLanguageSelection() {
+                LinearLayout langLayout = new LinearLayout(this);
+                langLayout.setOrientation(LinearLayout.VERTICAL);
+                langLayout.setGravity(Gravity.CENTER);
+                langLayout.setBackgroundColor(Color.parseColor("#FF6B35"));
+                langLayout.setPadding(50, 50, 50, 50);
+                
+                TextView selectLang = new TextView(this);
+                selectLang.setText("Select Language / Seleziona Lingua");
+                selectLang.setTextSize(18);
+                selectLang.setTextColor(Color.WHITE);
+                selectLang.setTypeface(null, Typeface.BOLD);
+                selectLang.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams selectParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                selectParams.setMargins(0, 0, 0, 30);
+                selectLang.setLayoutParams(selectParams);
+                langLayout.addView(selectLang);
+                
+                String[][] languages = {
+                    {"it", "🇮🇹 Italiano"},
+                    {"en", "🇬🇧 English"},
+                    {"es", "🇪🇸 Español"},
+                    {"fr", "🇫🇷 Français"},
+                    {"de", "🇩🇪 Deutsch"}
+                };
+                
+                for (String[] lang : languages) {
+                    Button langButton = new Button(this);
+                    langButton.setText(lang[1]);
+                    langButton.setTextSize(16);
+                    langButton.setBackgroundColor(Color.parseColor("#E85A2B"));
+                    langButton.setTextColor(Color.WHITE);
+                    LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                    buttonParams.setMargins(0, 10, 0, 10);
+                    langButton.setLayoutParams(buttonParams);
+                    
+                    langButton.setOnClickListener(v -> {
+                        selectedLanguage = lang[0];
+                        prefs.edit().putString("language", selectedLanguage).apply();
+                        recreate();
+                    });
+                    
+                    langLayout.addView(langButton);
+                }
+                
+                languageLayout = langLayout;
+                setContentView(languageLayout);
             }
             
             private void checkAndRequestPermissions() {
                 List<String> permissionsNeeded = new ArrayList<>();
-                
-                // Check basic permissions
                 for (String permission : REQUIRED_PERMISSIONS) {
                     if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                         permissionsNeeded.add(permission);
                     }
                 }
                 
-                // Check notification permission for Android 13+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS);
@@ -387,161 +640,91 @@ jobs:
                 if (!permissionsNeeded.isEmpty()) {
                     showPermissionDialog(permissionsNeeded);
                 } else {
-                    checkBatteryOptimization();
+                    startApp();
                 }
             }
             
             private void showPermissionDialog(List<String> permissions) {
                 new AlertDialog.Builder(this)
-                    .setTitle("Autorizzazioni Necessarie")
-                    .setMessage("FreeApi richiede le seguenti autorizzazioni per funzionare correttamente:\n\n" +
-                               "• Accesso alla rete (per l'accelerazione AI gratuita)\n" +
-                               "• Servizi in background (per il funzionamento continuo)\n" +
-                               "• Notifiche (per gli aggiornamenti di stato)\n" +
-                               "• Avvio automatico (per l'inizializzazione al boot)")
-                    .setPositiveButton("Concedi Autorizzazioni", (dialog, which) -> {
+                    .setTitle(getText("permissions_required"))
+                    .setMessage("FreeApi " + (isMasterVersion ? getText("version_master") : getText("version_standard")) + 
+                               "\n\n" + getText("powered_by"))
+                    .setPositiveButton(getText("grant_permissions"), (dialog, which) -> {
                         ActivityCompat.requestPermissions(this, 
                             permissions.toArray(new String[0]), 
                             PERMISSIONS_REQUEST_CODE);
                     })
-                    .setNegativeButton("Annulla", (dialog, which) -> {
-                        Toast.makeText(this, "Le autorizzazioni sono necessarie per il funzionamento", Toast.LENGTH_LONG).show();
-                        finish();
-                    })
+                    .setNegativeButton(getText("continue"), (dialog, which) -> startApp())
                     .setCancelable(false)
                     .show();
             }
             
-            private void checkBatteryOptimization() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Intent intent = new Intent();
-                    String packageName = getPackageName();
-                    
-                    if (!Settings.System.canWrite(this)) {
-                        new AlertDialog.Builder(this)
-                            .setTitle("Ottimizzazione Batteria")
-                            .setMessage("Per garantire il funzionamento continuo di FreeApi, si consiglia di disabilitare l'ottimizzazione della batteria.")
-                            .setPositiveButton("Apri Impostazioni", (dialog, which) -> {
-                                intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                                intent.setData(Uri.parse("package:" + packageName));
-                                startActivityForResult(intent, BATTERY_OPTIMIZATION_REQUEST);
-                            })
-                            .setNegativeButton("Continua", (dialog, which) -> initializeApp())
-                            .show();
-                    } else {
-                        initializeApp();
-                    }
-                } else {
-                    initializeApp();
-                }
-            }
-            
-            private void initializeApp() {
-                // Setup splash screen UI
-                setContentView(R.layout.activity_main);
+            private void startApp() {
+                statusText.setText(getText("connecting"));
                 
-                // Start SmartCache service
                 Intent serviceIntent = new Intent(this, SmartCacheService.class);
+                serviceIntent.putExtra("isMaster", isMasterVersion);
+                serviceIntent.putExtra("language", selectedLanguage);
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent);
                 } else {
                     startService(serviceIntent);
                 }
                 
-                // Setup WebView after a short delay to let service start
-                new Handler().postDelayed(this::setupWebView, 2000);
-                
-                Toast.makeText(this, "FreeApi in avvio...", Toast.LENGTH_LONG).show();
+                // Wait longer and retry with better logic
+                new Handler().postDelayed(this::setupWebView, 5000);
             }
             
             private void setupWebView() {
-                webView = findViewById(R.id.webview);
+                webView = new WebView(this);
                 webView.getSettings().setJavaScriptEnabled(true);
                 webView.getSettings().setDomStorageEnabled(true);
                 webView.getSettings().setAllowFileAccess(true);
-                webView.getSettings().setAllowContentAccess(true);
-                webView.getSettings().setBuiltInZoomControls(true);
-                webView.getSettings().setDisplayZoomControls(false);
-                webView.getSettings().setUseWideViewPort(true);
-                webView.getSettings().setLoadWithOverviewMode(true);
                 
                 webView.setWebViewClient(new WebViewClient() {
                     @Override
                     public void onPageFinished(WebView view, String url) {
                         super.onPageFinished(view, url);
-                        Toast.makeText(MainActivity.this, "Dashboard FreeApi caricata", Toast.LENGTH_SHORT).show();
+                        splashLayout.setVisibility(View.GONE);
+                        webView.setVisibility(View.VISIBLE);
+                        retryCount = 0;
                     }
                     
                     @Override
                     public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                         super.onReceivedError(view, errorCode, description, failingUrl);
-                        // Retry loading after 5 seconds
-                        new Handler().postDelayed(() -> view.loadUrl("http://localhost:3000"), 5000);
+                        if (retryCount < MAX_RETRIES) {
+                            retryCount++;
+                            statusText.setText(getText("connecting") + " (" + retryCount + "/" + MAX_RETRIES + ")");
+                            new Handler().postDelayed(() -> {
+                                if (retryCount <= MAX_RETRIES) {
+                                    view.loadUrl("http://localhost:3000");
+                                }
+                            }, 3000);
+                        } else {
+                            statusText.setText("Errore di connessione. Verifica che il servizio sia attivo.");
+                        }
                     }
                 });
                 
-                webView.setWebChromeClient(new WebChromeClient());
+                LinearLayout mainContainer = new LinearLayout(this);
+                mainContainer.setOrientation(LinearLayout.VERTICAL);
+                mainContainer.addView(splashLayout);
                 
-                // Load SmartCache dashboard
+                webView.setVisibility(View.GONE);
+                mainContainer.addView(webView, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT));
+                
+                setContentView(mainContainer);
                 webView.loadUrl("http://localhost:3000");
             }
             
             @Override
             public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                
                 if (requestCode == PERMISSIONS_REQUEST_CODE) {
-                    boolean allGranted = true;
-                    for (int result : grantResults) {
-                        if (result != PackageManager.PERMISSION_GRANTED) {
-                            allGranted = false;
-                            break;
-                        }
-                    }
-                    
-                    if (allGranted) {
-                        checkBatteryOptimization();
-                    } else {
-                        new AlertDialog.Builder(this)
-                            .setTitle("Autorizzazioni Mancanti")
-                            .setMessage("Alcune autorizzazioni sono state negate. FreeApi potrebbe non funzionare correttamente.")
-                            .setPositiveButton("Riprova", (dialog, which) -> checkAndRequestPermissions())
-                            .setNegativeButton("Continua Comunque", (dialog, which) -> initializeApp())
-                            .show();
-                    }
-                }
-            }
-            
-            @Override
-            protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-                super.onActivityResult(requestCode, resultCode, data);
-                if (requestCode == BATTERY_OPTIMIZATION_REQUEST) {
-                    initializeApp();
-                }
-            }
-            
-            @Override
-            public void onBackPressed() {
-                if (webView != null && webView.canGoBack()) {
-                    webView.goBack();
-                } else {
-                    super.onBackPressed();
-                }
-            }
-            
-            @Override
-            protected void onResume() {
-                super.onResume();
-                if (webView != null) {
-                    webView.onResume();
-                }
-            }
-            
-            @Override
-            protected void onPause() {
-                super.onPause();
-                if (webView != null) {
-                    webView.onPause();
+                    startApp();
                 }
             }
         }
@@ -581,18 +764,27 @@ jobs:
             
             @Override
             public int onStartCommand(Intent intent, int flags, int startId) {
-                startForeground(NOTIFICATION_ID, createNotification());
+                boolean isMaster = intent != null && intent.getBooleanExtra("isMaster", false);
+                String language = intent != null ? intent.getStringExtra("language") : "en";
+                
+                String notificationTitle = isMaster ? "FreeApi Master Active" : "FreeApi Standard Active";
+                String notificationText = isMaster ? "Master Database Access Running" : "Local Cache + Federated Sync Running";
+                
+                startForeground(NOTIFICATION_ID, createNotification(notificationTitle, notificationText));
                 
                 executor.execute(() -> {
                     try {
                         // Extract Node.js project from assets
                         extractNodeProject();
                         
-                        // Start Node.js SmartCache
+                        // Configure environment for Standard vs Master
+                        configureEnvironment(isMaster, language);
+                        
+                        // Start Node.js FreeApi
                         startNodeProcess();
                         
                     } catch (Exception e) {
-                        Log.e(TAG, "Failed to start SmartCache", e);
+                        Log.e(TAG, "Failed to start FreeApi", e);
                     }
                 });
                 
@@ -692,12 +884,56 @@ jobs:
                 Log.i(TAG, "SmartCache Node.js process started");
             }
             
-            private Notification createNotification() {
+            private Notification createNotification(String title, String text) {
                 return new Notification.Builder(this, CHANNEL_ID)
-                    .setContentTitle("SmartCache Enterprise")
-                    .setContentText("AI Response Caching Active")
+                    .setContentTitle(title)
+                    .setContentText(text + " - Powered by 420White,LLC")
                     .setSmallIcon(R.mipmap.ic_launcher)
                     .build();
+            }
+            
+            private void configureEnvironment(boolean isMaster, String language) throws IOException {
+                File projectDir = new File(getFilesDir(), "nodejs-project");
+                File envFile = new File(projectDir, ".env");
+                
+                // Create configuration based on version type
+                StringBuilder envConfig = new StringBuilder();
+                envConfig.append("# FreeApi Configuration - Powered by 420White,LLC\n");
+                envConfig.append("LANGUAGE=").append(language).append("\n");
+                envConfig.append("DB_PATH=./freeapi.db\n");
+                envConfig.append("DASHBOARD_PORT=3000\n");
+                envConfig.append("WS_PORT=8080\n");
+                envConfig.append("NODE_ENV=production\n");
+                
+                if (isMaster) {
+                    // Master version: direct access to worldwide database
+                    envConfig.append("# MASTER VERSION - Worldwide Database Access\n");
+                    envConfig.append("VERSION_TYPE=master\n");
+                    envConfig.append("CACHE_MODE=worldwide\n");
+                    envConfig.append("SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co\n");
+                    envConfig.append("SUPABASE_ANON_KEY=your_master_key_here\n");
+                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.functions.supabase.co/uacx-cache\n");
+                    envConfig.append("ENABLE_DIRECT_DB_ACCESS=true\n");
+                    envConfig.append("ADMIN_MODE=true\n");
+                } else {
+                    // Standard version: local cache + federated sync
+                    envConfig.append("# STANDARD VERSION - Local Cache + Federated Sync\n");
+                    envConfig.append("VERSION_TYPE=standard\n");
+                    envConfig.append("CACHE_MODE=federated\n");
+                    envConfig.append("SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co\n");
+                    envConfig.append("SUPABASE_ANON_KEY=your_public_key_here\n");
+                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.functions.supabase.co/uacx-cache\n");
+                    envConfig.append("ENABLE_LOCAL_CACHE=true\n");
+                    envConfig.append("SYNC_TO_FEDERATED=true\n");
+                    envConfig.append("ADMIN_MODE=false\n");
+                }
+                
+                // Write configuration to file
+                try (FileWriter writer = new FileWriter(envFile)) {
+                    writer.write(envConfig.toString());
+                }
+                
+                Log.i(TAG, "Configuration created for " + (isMaster ? "MASTER" : "STANDARD") + " version");
             }
             
             private void createNotificationChannel() {
@@ -871,6 +1107,28 @@ jobs:
                     manifestPlaceholders = [
                         appName: "@string/app_name_debug"
                     ]
+                    buildConfigField "String", "BUILD_TYPE", "\"debug\""
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                }
+                
+                standard {
+                    initWith release
+                    applicationIdSuffix ""
+                    manifestPlaceholders = [
+                        appName: "@string/app_name"
+                    ]
+                    buildConfigField "String", "BUILD_TYPE", "\"standard\""
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                }
+                
+                master {
+                    initWith release
+                    applicationIdSuffix ".master"
+                    manifestPlaceholders = [
+                        appName: "@string/app_name"
+                    ]
+                    buildConfigField "String", "BUILD_TYPE", "\"master\""
+                    buildConfigField "boolean", "IS_MASTER", "true"
                 }
                 
                 release {
@@ -1392,12 +1650,16 @@ jobs:
         # Clean build for fresh start
         ./gradlew clean
         
-        # Build both debug and release variants
-        echo "Building debug APK..."
-        ./gradlew assembleDebug --stacktrace --info
+        # Build specific variant based on matrix
+        echo "Building ${{ matrix.variant }} APK..."
         
-        echo "Building optimized release APK..."
-        ./gradlew assembleRelease --stacktrace --info
+        if [ "${{ matrix.variant }}" == "debug" ]; then
+          ./gradlew assembleDebug --stacktrace --info
+        elif [ "${{ matrix.variant }}" == "standard" ]; then
+          ./gradlew assembleStandard --stacktrace --info
+        elif [ "${{ matrix.variant }}" == "master" ]; then
+          ./gradlew assembleMaster --stacktrace --info
+        fi
         
         # Verify APK was created
         echo "Built APKs:"
