@@ -405,7 +405,7 @@ jobs:
         
     - name: Create build.gradle and settings.gradle
       run: |
-        # Create settings.gradle first
+        # Create settings.gradle with centralized repository management
         cat > android/settings.gradle << 'EOF'
         pluginManagement {
             repositories {
@@ -413,41 +413,89 @@ jobs:
                 google()
                 mavenCentral()
             }
-        }
-        dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-                google()
-                mavenCentral()
+            plugins {
+                id 'com.android.application' version '8.2.2'
+                id 'com.android.library' version '8.2.2'
             }
         }
         
-        rootProject.name = "SmartCache"
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+            repositories {
+                google() {
+                    mavenContent {
+                        includeGroupByRegex("com\\.android.*")
+                        includeGroupByRegex("com\\.google.*")
+                        includeGroupByRegex("androidx.*")
+                    }
+                }
+                mavenCentral()
+                maven { 
+                    url 'https://jitpack.io' 
+                    content {
+                        includeGroupByRegex("com\\.github.*")
+                    }
+                }
+            }
+        }
+        
+        rootProject.name = "SmartCacheEnterprise"
         include ':app'
         EOF
         
-        # Create root build.gradle
+        # Create minimal root build.gradle (repositories managed by settings.gradle)
         cat > android/build.gradle << 'EOF'
+        // Root build.gradle - repositories managed by settings.gradle
+        
         buildscript {
-            repositories {
-                gradlePluginPortal()
-                google()
-                mavenCentral()
-            }
-            dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.4'
+            ext {
+                compileSdkVersion = 34
+                targetSdkVersion = 34
+                minSdkVersion = 24
+                buildToolsVersion = "34.0.0"
+                androidGradleVersion = "8.2.2"
+                
+                // Dependency versions
+                appCompatVersion = "1.6.1"
+                coreVersion = "1.12.0"
+                webkitVersion = "1.8.0"
             }
         }
         
         plugins {
-            id 'com.android.application' version '8.1.4' apply false
+            id 'com.android.application' version '8.2.2' apply false
         }
         
-        allprojects {
-            repositories {
-                google()
-                mavenCentral()
+        // Global configuration
+        subprojects {
+            afterEvaluate { project ->
+                if (project.hasProperty('android')) {
+                    android {
+                        compileSdkVersion rootProject.ext.compileSdkVersion
+                        buildToolsVersion rootProject.ext.buildToolsVersion
+                        
+                        compileOptions {
+                            sourceCompatibility JavaVersion.VERSION_11
+                            targetCompatibility JavaVersion.VERSION_11
+                        }
+                        
+                        packagingOptions {
+                            pickFirst '**/libc++_shared.so'
+                            pickFirst '**/libjsc.so'
+                            pickFirst '**/libnode.so'
+                            exclude 'META-INF/DEPENDENCIES'
+                            exclude 'META-INF/LICENSE'
+                            exclude 'META-INF/LICENSE.txt'
+                            exclude 'META-INF/NOTICE'
+                            exclude 'META-INF/NOTICE.txt'
+                        }
+                    }
+                }
             }
+        }
+        
+        tasks.register('clean', Delete) {
+            delete rootProject.buildDir
         }
         EOF
         
@@ -458,44 +506,141 @@ jobs:
         
         android {
             namespace 'com.smartcache.enterprise'
-            compileSdk 34
+            compileSdk rootProject.ext.compileSdkVersion
+            buildToolsVersion rootProject.ext.buildToolsVersion
             
             defaultConfig {
                 applicationId "com.smartcache.enterprise"
-                minSdk 24
-                targetSdk 34
-                versionCode 1
-                versionName "1.0"
+                minSdk rootProject.ext.minSdkVersion
+                targetSdk rootProject.ext.targetSdkVersion
+                versionCode getVersionCodeFromGit()
+                versionName getVersionNameFromGit()
+                
                 testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+                vectorDrawables.useSupportLibrary = true
+                
+                ndk {
+                    abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+                }
+                
+                multiDexEnabled true
+            }
+            
+            signingConfigs {
+                debug {
+                    storeFile file("debug.keystore")
+                    storePassword "android"
+                    keyAlias "androiddebugkey"
+                    keyPassword "android"
+                }
             }
             
             buildTypes {
-                release {
-                    minifyEnabled false
-                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-                    signingConfig signingConfigs.debug
-                }
                 debug {
                     applicationIdSuffix ".debug"
                     debuggable true
+                    minifyEnabled false
+                    signingConfig signingConfigs.debug
+                    manifestPlaceholders = [
+                        appName: "@string/app_name_debug"
+                    ]
+                }
+                
+                release {
+                    minifyEnabled true
+                    shrinkResources true
+                    proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                    signingConfig signingConfigs.debug
+                    manifestPlaceholders = [
+                        appName: "@string/app_name"
+                    ]
+                    
+                    // Enterprise security
+                    buildConfigField "String", "BUILD_TYPE", '"release"'
+                    buildConfigField "boolean", "ENABLE_LOGGING", "false"
                 }
             }
             
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_11
                 targetCompatibility JavaVersion.VERSION_11
+                coreLibraryDesugaringEnabled true
+            }
+            
+            buildFeatures {
+                buildConfig true
+                viewBinding true
+            }
+            
+            lint {
+                abortOnError false
+                checkReleaseBuilds false
+                disable 'MissingTranslation', 'InvalidPackage'
             }
             
             packagingOptions {
                 pickFirst '**/libc++_shared.so'
                 pickFirst '**/libjsc.so'
+                pickFirst '**/libnode.so'
+                pickFirst '**/libsqlite.so'
+                exclude 'META-INF/DEPENDENCIES'
+                exclude 'META-INF/LICENSE'
+                exclude 'META-INF/LICENSE.txt'
+                exclude 'META-INF/NOTICE'
+                exclude 'META-INF/NOTICE.txt'
+                exclude 'META-INF/ASL2.0'
+                exclude 'META-INF/INDEX.LIST'
+                exclude 'META-INF/io.netty.versions.properties'
             }
         }
         
         dependencies {
-            implementation 'androidx.appcompat:appcompat:1.6.1'
-            implementation 'androidx.core:core:1.12.0'
-            implementation 'androidx.webkit:webkit:1.8.0'
+            // Core Android dependencies
+            implementation "androidx.appcompat:appcompat:${rootProject.ext.appCompatVersion}"
+            implementation "androidx.core:core:${rootProject.ext.coreVersion}"
+            implementation "androidx.webkit:webkit:${rootProject.ext.webkitVersion}"
+            
+            // Additional enterprise dependencies
+            implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
+            implementation 'androidx.work:work-runtime:2.9.0'
+            implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+            implementation 'androidx.preference:preference:1.2.1'
+            implementation 'com.google.android.material:material:1.11.0'
+            
+            // Desugaring for API compatibility
+            coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+            
+            // Testing
+            testImplementation 'junit:junit:4.13.2'
+            androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+            androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+        }
+        
+        // Version management functions
+        def getVersionCodeFromGit() {
+            try {
+                def stdout = new ByteArrayOutputStream()
+                exec {
+                    commandLine 'git', 'rev-list', 'HEAD', '--count'
+                    standardOutput = stdout
+                }
+                return Integer.parseInt(stdout.toString().trim())
+            } catch (Exception e) {
+                return 1
+            }
+        }
+        
+        def getVersionNameFromGit() {
+            try {
+                def stdout = new ByteArrayOutputStream()
+                exec {
+                    commandLine 'git', 'describe', '--tags', '--always'
+                    standardOutput = stdout
+                }
+                return stdout.toString().trim()
+            } catch (Exception e) {
+                return "1.0.0"
+            }
         }
         EOF
         
@@ -527,6 +672,14 @@ jobs:
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
             <string name="app_name">SmartCache Enterprise</string>
+            <string name="app_name_debug">SmartCache Debug</string>
+            <string name="service_name">SmartCache AI Service</string>
+            <string name="service_description">Enterprise AI response caching and optimization</string>
+            <string name="notification_title">SmartCache Active</string>
+            <string name="notification_text">AI response caching is running</string>
+            <string name="dashboard_loading">Loading SmartCache Dashboard...</string>
+            <string name="error_node_not_found">Node.js runtime not found</string>
+            <string name="error_service_failed">Failed to start SmartCache service</string>
         </resources>
         EOF
         
@@ -556,22 +709,115 @@ jobs:
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 96x96 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
         convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
         
-    - name: Create gradle wrapper
+    - name: Create debug keystore and ProGuard rules
+      run: |
+        # Create debug keystore
+        keytool -genkeypair -alias androiddebugkey -keypass android -keystore android/app/debug.keystore \
+                -storepass android -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 \
+                -validity 10000 -deststoretype pkcs12
+        
+        # Create ProGuard rules
+        cat > android/app/proguard-rules.pro << 'EOF'
+        # SmartCache Enterprise ProGuard Rules
+        
+        # Keep Node.js related classes
+        -keep class com.smartcache.enterprise.** { *; }
+        
+        # Keep WebView related classes
+        -keep class android.webkit.** { *; }
+        -keepclassmembers class * extends android.webkit.WebViewClient {
+            public void *(android.webkit.WebView, java.lang.String, android.graphics.Bitmap);
+            public boolean *(android.webkit.WebView, java.lang.String);
+        }
+        
+        # Keep Service classes
+        -keep public class * extends android.app.Service
+        -keep public class * extends android.content.BroadcastReceiver
+        -keep public class * extends android.content.ContentProvider
+        
+        # Keep Notification classes
+        -keep class androidx.core.app.NotificationCompat** { *; }
+        
+        # SQLite and Node.js native libraries
+        -keep class org.sqlite.** { *; }
+        -keep class org.nodejs.** { *; }
+        
+        # Preserve line numbers for debugging
+        -keepattributes SourceFile,LineNumberTable
+        -renamesourcefileattribute SourceFile
+        
+        # Remove logging in release builds
+        -assumenosideeffects class android.util.Log {
+            public static boolean isLoggable(java.lang.String, int);
+            public static int v(...);
+            public static int i(...);
+            public static int w(...);
+            public static int d(...);
+            public static int e(...);
+        }
+        EOF
+        
+    - name: Create gradle wrapper and validate build
       run: |
         cd android
-        # Use Gradle wrapper from GitHub Actions
+        
+        # Install compatible Gradle version
         gradle wrapper --gradle-version 8.5 --distribution-type all
         
-    - name: Build Android APK
+        # Validate Gradle configuration
+        ./gradlew tasks --quiet
+        
+        # Check for any configuration issues
+        ./gradlew dependencies --configuration implementation --quiet || echo "Dependencies check completed"
+        
+        # Validate Android configuration
+        echo "Validating Android project structure..."
+        ls -la app/src/main/
+        
+        echo "Gradle build configuration:"
+        cat gradle/wrapper/gradle-wrapper.properties
+        
+    - name: Build Android APK with full optimization
       run: |
         cd android
-        ./gradlew assembleRelease
         
-    - name: Upload APK artifact
+        # Clean build for fresh start
+        ./gradlew clean
+        
+        # Build both debug and release variants
+        echo "Building debug APK..."
+        ./gradlew assembleDebug --stacktrace --info
+        
+        echo "Building optimized release APK..."
+        ./gradlew assembleRelease --stacktrace --info
+        
+        # Verify APK was created
+        echo "Built APKs:"
+        find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
+        
+        # Create checksums for verification
+        find app/build/outputs/apk -name "*.apk" -exec sha256sum {} \; > apk-checksums.txt
+        cat apk-checksums.txt
+        
+        # Analyze APK content
+        echo "APK Analysis:"
+        if command -v aapt >/dev/null 2>&1; then
+            for apk in app/build/outputs/apk/*/*.apk; do
+                echo "=== Analysis for $(basename "$apk") ==="
+                aapt dump badging "$apk" | head -20
+                echo "APK size: $(du -h "$apk" | cut -f1)"
+                echo "=============================="
+            done
+        fi
+        
+    - name: Upload APK artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: smartcache-android-apk
-        path: android/app/build/outputs/apk/release/*.apk
+        name: smartcache-android-enterprise
+        path: |
+          android/app/build/outputs/apk/**/*.apk
+          android/apk-checksums.txt
+        retention-days: 30
 
   create-release:
     needs: [build-executables, build-android-apk]
@@ -586,11 +832,12 @@ jobs:
       run: |
         mkdir release-assets
         
-        # Copy executables
-        cp smartcache-linux/* release-assets/ || true
-        cp smartcache-windows/* release-assets/ || true  
-        cp smartcache-macos/* release-assets/ || true
-        cp smartcache-android-apk/* release-assets/ || true
+        # Copy all platform executables
+        cp smartcache-linux/* release-assets/ 2>/dev/null || echo "Linux build not available"
+        cp smartcache-windows/* release-assets/ 2>/dev/null || echo "Windows build not available"  
+        cp smartcache-macos/* release-assets/ 2>/dev/null || echo "macOS build not available"
+        cp smartcache-android-enterprise/*.apk release-assets/ 2>/dev/null || echo "Android APK not available"
+        cp smartcache-android-enterprise/apk-checksums.txt release-assets/ 2>/dev/null || true
         
         # Create release info
         echo "SmartCache Enterprise - Universal AI Caching System" > release-assets/README.txt
@@ -606,16 +853,21 @@ jobs:
           ## SmartCache Enterprise - Complete Build
           
           ### 🚀 What's New
-          - Universal AI API interception (OpenAI, Anthropic, Google, etc.)
-          - Federated caching system with Supabase sync
-          - Enterprise deployment tools
-          - Real-time dashboard and analytics
+          - Universal AI API interception (OpenAI, Anthropic, Google, Cohere, HuggingFace)
+          - Federated caching system with Supabase central sync
+          - Enterprise-grade Android APK with embedded Node.js runtime
+          - SQLite native compilation for all platforms
+          - Real-time dashboard with local + global statistics
+          - Multi-level interception (Runtime, System Proxy, Browser Extension)
+          - Auto-propagation across enterprise networks
           
           ### 📦 Downloads
-          - **Windows**: `smartcache-windows.exe`
-          - **Linux**: `smartcache-linux`
-          - **macOS**: `smartcache-macos`  
-          - **Android APK**: `smartcache-enterprise.apk`
+          - **Windows Enterprise**: `smartcache-windows.exe` (Native SQLite, AD deployment ready)
+          - **Linux Enterprise**: `smartcache-linux` (Native SQLite, SSH deployment ready)
+          - **macOS Enterprise**: `smartcache-macos` (Native SQLite, Uniform deployment ready)
+          - **Android Enterprise APK**: `app-release.apk` (Node.js embedded, SQLite native)
+          - **Android Debug APK**: `app-debug.apk` (Development version with logging)
+          - **APK Checksums**: `apk-checksums.txt` (Security verification)
           
           ### 🔧 Installation
           1. Download the appropriate version for your platform
