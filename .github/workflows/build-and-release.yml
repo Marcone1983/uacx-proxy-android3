@@ -2456,33 +2456,33 @@ jobs:
         cp -r node_modules "$PROJECT_DIR/"
         
         echo "⚙️ Creating production environment configuration..."
-        cat > "$PROJECT_DIR/.env" << 'ENV_EOF'
-# FreeApi Enterprise Configuration - Android Production
-# Powered and builded by 420White,LLC
-NODE_ENV=production
-DB_PATH=./freeapi.db
-DASHBOARD_PORT=3000
-WS_PORT=8080
-
-# Supabase Configuration (Real Keys)
-SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ
-SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache
-
-# Android optimizations
-FORCE_COLOR=0
-DEBUG=
-ANDROID_BUILD=true
-ENV_EOF
+        cat > "$PROJECT_DIR/.env" << 'EOF'
+        # FreeApi Enterprise Configuration - Android Production
+        # Powered and builded by 420White,LLC
+        NODE_ENV=production
+        DB_PATH=./freeapi.db
+        DASHBOARD_PORT=3000
+        WS_PORT=8080
+        
+        # Supabase Configuration (Real Keys)
+        SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co
+        SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ
+        SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache
+        
+        # Android optimizations
+        FORCE_COLOR=0
+        DEBUG=
+        ANDROID_BUILD=true
+        EOF
         
         echo "🔧 Creating startup script..."
-        cat > "$PROJECT_DIR/start.sh" << 'SCRIPT_EOF'
-#!/system/bin/sh
-export NODE_PATH="./node_modules"
-export HOME="."
-export ANDROID_BUILD="true"
-./bin/node src/smartcache.js
-SCRIPT_EOF
+        cat > "$PROJECT_DIR/start.sh" << 'EOF'
+        #!/system/bin/sh
+        export NODE_PATH="./node_modules"
+        export HOME="."
+        export ANDROID_BUILD="true"
+        ./bin/node src/smartcache.js
+        EOF
         chmod +x "$PROJECT_DIR/start.sh"
         
         # Calculate and verify total size
@@ -2506,79 +2506,79 @@ SCRIPT_EOF
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         echo "📄 Creating build.gradle..."
-        cat > android/app/build.gradle << 'GRADLE_EOF'
-plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.freeapi.accelerator'
-    compileSdk 34
-    
-    defaultConfig {
-        applicationId "com.freeapi.accelerator"
-        minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "2.0.0"
-        
-        ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a'
-        }
-    }
-    
-    buildTypes {
-        debug {
-            applicationIdSuffix ".debug"
-            debuggable true
-            buildConfigField "boolean", "IS_MASTER", "false"
-            manifestPlaceholders = [appName: "@string/app_name_debug"]
+        cat > android/app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
         }
         
-        standard {
-            minifyEnabled false
-            buildConfigField "boolean", "IS_MASTER", "false"
-            manifestPlaceholders = [appName: "@string/app_name"]
+        android {
+            namespace 'com.freeapi.accelerator'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.freeapi.accelerator"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "2.0.0"
+                
+                ndk {
+                    abiFilters 'arm64-v8a', 'armeabi-v7a'
+                }
+            }
+            
+            buildTypes {
+                debug {
+                    applicationIdSuffix ".debug"
+                    debuggable true
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                    manifestPlaceholders = [appName: "@string/app_name_debug"]
+                }
+                
+                standard {
+                    minifyEnabled false
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                    manifestPlaceholders = [appName: "@string/app_name"]
+                }
+                
+                master {
+                    minifyEnabled false
+                    buildConfigField "boolean", "IS_MASTER", "true"
+                    applicationIdSuffix ".master"
+                    manifestPlaceholders = [appName: "@string/app_name_master"]
+                }
+            }
+            
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_11
+                targetCompatibility JavaVersion.VERSION_11
+            }
+            
+            packagingOptions {
+                pickFirst '**/libc++_shared.so'
+                pickFirst '**/libnode.so'
+            }
         }
         
-        master {
-            minifyEnabled false
-            buildConfigField "boolean", "IS_MASTER", "true"
-            applicationIdSuffix ".master"
-            manifestPlaceholders = [appName: "@string/app_name_master"]
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.core:core:1.12.0'
+            implementation 'androidx.webkit:webkit:1.8.0'
         }
-    }
-    
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
-    }
-    
-    packagingOptions {
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libnode.so'
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'androidx.core:core:1.12.0'
-    implementation 'androidx.webkit:webkit:1.8.0'
-}
-GRADLE_EOF
+        EOF
 
         echo "📄 Creating settings.gradle..."
-        cat > android/settings.gradle << 'SETTINGS_EOF'
-rootProject.name = "FreeApiEnterpriseApp"
-include ':app'
-SETTINGS_EOF
+        cat > android/settings.gradle << 'EOF'
+        rootProject.name = "FreeApiEnterpriseApp"
+        include ':app'
+        EOF
 
         echo "📄 Creating gradle.properties..."
-        cat > android/gradle.properties << 'PROPS_EOF'
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-android.useAndroidX=true
-android.enableJetifier=true
-PROPS_EOF
+        cat > android/gradle.properties << 'EOF'
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.enableJetifier=true
+        EOF
 
         echo "✅ Android build configuration created successfully!"
 
