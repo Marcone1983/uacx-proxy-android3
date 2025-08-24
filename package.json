@@ -1,32 +1,53 @@
 {
-  "name": "smartcache-ai-enterprise",
-  "version": "1.0.0",
-  "description": "Enterprise-wide AI response caching and analytics",
+  "name": "freeapi-ai-enterprise",
+  "version": "2.0.0",
+  "description": "FreeApi - Enterprise AI Response Caching & Acceleration System",
   "main": "src/smartcache.js",
+  "author": "420White,LLC",
+  "license": "Enterprise",
+  "keywords": ["ai", "caching", "enterprise", "openai", "anthropic", "acceleration"],
   "scripts": {
     "start": "node src/smartcache.js",
     "dashboard": "node src/dashboard.js",
     "build": "node build.js",
-    "build:exe": "pkg . --target node20-win-x64 --output dist/smartcache.exe",
+    "build:exe": "pkg . --target node18-win-x64 --output dist/freeapi.exe",
     "deploy:enterprise": "node enterprise-deploy.js",
-    "test:intercept": "node test/test-interception.js"
+    "test:intercept": "node test/test-interception.js",
+    "dev": "concurrently \"node src/smartcache.js\" \"node src/dashboard.js\"",
+    "install:android": "npm install --production --target_arch=arm64 --target_platform=android"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.6.2",
-    "crypto": "^1.0.1",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "node-cron": "^3.0.3",
     "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1",
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "pkg": "^5.8.1",
-    "open": "^10.0.3"
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2",
+    "open": "^10.0.3",
+    "pkg": "^5.8.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "bin": "start.js",
   "pkg": {
-    "targets": ["node20-win-x64", "node20-macos-x64", "node20-linux-x64"],
+    "targets": ["node18-win-x64", "node18-macos-x64", "node18-linux-x64"],
     "outputPath": "dist",
-    "assets": [".env", "src/**/*"]
-  }
+    "assets": [".env", "src/**/*", "node_modules/@supabase/**/*"]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Marcone1983/uacx-proxy-android3"
+  },
+  "homepage": "https://420white.com"
 }

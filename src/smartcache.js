@@ -3,10 +3,17 @@ const https = require('https');
 const crypto = require('crypto');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
-const { supabaseUrl, supabaseKey, supabaseFunction, dbPath, dashboardPort, wsPort } = require('./config');
 const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
+const { supabaseUrl, supabaseKey, supabaseFunction, dbPath, dashboardPort, wsPort } = require('./config');
 const NetworkPropagator = require('./auto-propagate');
 const AdvancedInterceptor = require('./advanced-interceptor');
+
+// Supabase client con le tue chiavi reali
+const supabase = createClient(
+  'https://grjhpkndqrkewluxazvl.supabase.co',
+  'sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ'
+);
 
 const db = new sqlite3.Database(dbPath);
 const propagator = new NetworkPropagator();
@@ -95,7 +102,7 @@ function handleAIRequest(orig, protocol, ...args) {
           // Salva in cache locale per future richieste
           await storeResponse(hash, queryInfo.query, centralData.response, topic, queryInfo.model, 0);
           cached = { response_text: centralData.response };
-          console.log('✨ Cache hit from central database');
+          console.log('✨ Cache hit from Supabase central database');
         }
       }
       
@@ -169,18 +176,29 @@ function getCached(hash, topic) {
   });
 }
 
-function storeResponse(hash, query, response, topic, model, rt) {
-  return new Promise((resolve, reject) => {
-    const id = crypto.randomUUID();
-    const ts = Date.now();
+async function storeResponse(hash, query, response, topic, model, rt) {
+  const id = crypto.randomUUID();
+  const ts = Date.now();
+  const apiCost = 0.15; // Stima costo API salvato
+  
+  // Prima salva localmente in SQLite
+  await new Promise((resolve, reject) => {
     db.run(
       `INSERT OR REPLACE INTO ai_responses_${topic}
-        (id, query_hash, query_text, response_text, user_id, model_used, timestamp, response_time_ms)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, hash, query, response, process.env.USER || 'unknown', model, ts, rt],
+        (id, query_hash, query_text, response_text, user_id, model_used, timestamp, response_time_ms, api_cost_saved)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, hash, query, response, process.env.USER || 'unknown', model, ts, rt, apiCost],
       err => err ? reject(err) : resolve()
     );
   });
+  
+  // Poi sincronizza con Supabase (non bloccante)
+  syncToSupabase(hash, query, response, topic, model, apiCost).catch(err => {
+    console.log('⚠️ Background Supabase sync failed:', err.message);
+  });
+  
+  console.log(`💾 Stored response locally + syncing to worldwide database`);
+  return true;
 }
 
 function incrementCacheHit(hash, topic, rt) {
@@ -229,33 +247,97 @@ async function sendToSupabase(query, response, topic, model, rt) {
 
 async function checkCentralCache(queryHash, topic) {
   try {
-    const response = await axios.get(`${supabaseFunction}/lookup`, {
-      params: { hash: queryHash, topic },
-      headers: { apikey: supabaseKey }
+    console.log(`🔍 Checking Supabase central cache for hash: ${queryHash.substring(0, 8)}...`);
+    
+    const { data, error } = await supabase.functions.invoke('uacx-cache', {
+      body: { 
+        action: 'lookup',
+        hash: queryHash, 
+        topic: topic 
+      }
     });
-    if (response.data && response.data.found) {
-      return response.data;
+    
+    if (error) {
+      console.log('⚠️ Supabase cache lookup error:', error.message);
+      return null;
     }
+    
+    if (data && data.found) {
+      console.log('🎯 Central cache HIT from 420White,LLC database');
+      return {
+        response: data.response_text,
+        model: data.model_used,
+        timestamp: data.timestamp
+      };
+    }
+    
+    console.log('❌ Central cache MISS - not in worldwide database');
+    return null;
   } catch (err) {
-    console.log('Central cache lookup failed, checking local');
+    console.log('🚨 Central cache lookup failed:', err.message);
+    return null;
   }
-  return null;
+}
+
+async function syncToSupabase(queryHash, queryText, responseText, topic, model, apiCost) {
+  try {
+    console.log(`📤 Syncing to Supabase central database - Topic: ${topic}`);
+    
+    const { data, error } = await supabase.functions.invoke('uacx-cache', {
+      body: {
+        action: 'store',
+        hash: queryHash,
+        query_text: queryText,
+        response_text: responseText,
+        topic: topic,
+        model_used: model,
+        api_cost_saved: apiCost,
+        timestamp: Date.now(),
+        client_id: process.env.CLIENT_ID || 'freeapi-client'
+      }
+    });
+    
+    if (error) {
+      console.log('⚠️ Supabase sync error:', error.message);
+      return false;
+    }
+    
+    console.log('✅ Successfully synced to 420White,LLC worldwide database');
+    return true;
+  } catch (err) {
+    console.log('🚨 Supabase sync failed:', err.message);
+    return false;
+  }
 }
 
 async function fetchGlobalStats() {
   try {
-    const response = await axios.get(`${supabaseFunction}/stats`, {
-      headers: { apikey: supabaseKey }
+    console.log('📊 Fetching global stats from Supabase...');
+    
+    const { data, error } = await supabase.functions.invoke('uacx-cache', {
+      body: { action: 'stats' }
     });
-    return response.data || {};
+    
+    if (error) {
+      console.log('⚠️ Global stats error:', error.message);
+      return { global_hits: 0, global_savings: 0, total_clients: 0 };
+    }
+    
+    console.log('📈 Global stats retrieved from 420White,LLC database');
+    return data || { global_hits: 0, global_savings: 0, total_clients: 0 };
   } catch (err) {
+    console.log('🚨 Global stats failed:', err.message);
     return { global_hits: 0, global_savings: 0, total_clients: 0 };
   }
 }
 
 function startDashboard() {
-  const express = require('express');
-  const app = express();
+  // Usa il nuovo dashboard completo
+  console.log('🚀 Starting FreeApi Enterprise Dashboard...');
+  const dashboard = require('./dashboard');
+  console.log('📊 Dashboard with Supabase integration loaded');
+  return dashboard;
+}
   const WebSocket = require('ws');
   const os = require('os');
 const path = require('path');

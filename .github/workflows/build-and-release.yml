@@ -183,23 +183,82 @@ jobs:
         
     - name: Install dependencies with native compilation
       run: |
-        npm install
-        npm rebuild
+        echo "🔧 Installing FreeApi Enterprise dependencies..."
+        npm install --production
         
-    - name: Download Node.js for Android and copy project
+        # Rebuild native modules for Linux (compatible with Android)
+        echo "🔨 Rebuilding native modules..."
+        npm rebuild sqlite3 --verbose
+        
+        # Verify critical dependencies
+        echo "✅ Verifying dependencies..."
+        node -e "console.log('Express:', require('express').version || 'OK')"
+        node -e "console.log('SQLite3:', require('sqlite3').VERSION || 'OK')"
+        node -e "console.log('Supabase:', require('@supabase/supabase-js').version || 'OK')"
+        
+    - name: Download Node.js for Android and prepare full project
       run: |
-        # Download Node.js binary for Android ARM64
+        echo "📱 Preparing FreeApi Enterprise for Android..."
+        
+        # Create Android assets structure
         mkdir -p android/app/src/main/assets/nodejs-project/bin
-        wget https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-arm64.tar.gz
+        
+        # Download Node.js binary for Android ARM64
+        echo "⬇️ Downloading Node.js runtime for Android ARM64..."
+        wget -q https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-arm64.tar.gz
         tar -xzf node-v20.18.0-linux-arm64.tar.gz
         cp node-v20.18.0-linux-arm64/bin/node android/app/src/main/assets/nodejs-project/bin/
         chmod +x android/app/src/main/assets/nodejs-project/bin/node
         
-        # Copy Node.js project files
+        # Get Node.js binary size for verification
+        NODE_SIZE=$(du -sh android/app/src/main/assets/nodejs-project/bin/node | cut -f1)
+        echo "📊 Node.js binary size: $NODE_SIZE"
+        
+        # Copy complete project with ALL dependencies
+        echo "📂 Copying project files..."
         cp -r src android/app/src/main/assets/nodejs-project/
-        cp -r node_modules android/app/src/main/assets/nodejs-project/
         cp package.json android/app/src/main/assets/nodejs-project/
         cp .env.example android/app/src/main/assets/nodejs-project/
+        
+        # CRITICAL: Copy ALL node_modules (this was missing!)
+        echo "📦 Copying node_modules (this makes APK 100MB+)..."
+        cp -r node_modules android/app/src/main/assets/nodejs-project/
+        
+        # Install any additional Android-specific deps
+        cd android/app/src/main/assets/nodejs-project
+        
+        # Create production-ready .env
+        echo "🔧 Creating production environment config..."
+        cat > .env << 'ENV_EOF'
+        # FreeApi Enterprise Configuration - Powered by 420White,LLC
+        NODE_ENV=production
+        DB_PATH=./freeapi.db
+        DASHBOARD_PORT=3000
+        WS_PORT=8080
+        
+        # Supabase Configuration (your real keys)
+        SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co
+        SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ
+        SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache
+        
+        # Enterprise Features
+        ENABLE_LOGGING=true
+        CACHE_TTL=3600
+        MAX_CACHE_SIZE=1000000
+        ENV_EOF
+        
+        cd ../../../../../..
+        
+        # Verify what we've copied
+        echo "📋 Android APK contents verification:"
+        echo "Node.js binary: $(ls -lh android/app/src/main/assets/nodejs-project/bin/node | awk '{print $5}')"
+        echo "Source files: $(find android/app/src/main/assets/nodejs-project/src -name '*.js' | wc -l) JS files"
+        echo "Dependencies: $(ls android/app/src/main/assets/nodejs-project/node_modules | wc -l) packages"
+        echo "Total size: $(du -sh android/app/src/main/assets/nodejs-project | cut -f1)"
+        
+        # List critical dependencies
+        echo "🔍 Critical dependencies present:"
+        ls android/app/src/main/assets/nodejs-project/node_modules | grep -E "(express|sqlite3|supabase|ws|axios)" || true
         
         # Create startup script
         cat > android/app/src/main/assets/nodejs-project/start.sh << 'EOF'
