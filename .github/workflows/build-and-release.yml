@@ -352,6 +352,7 @@ jobs:
         import android.widget.ProgressBar;
         import android.widget.TextView;
         import android.widget.Toast;
+        import android.util.Log;
         import androidx.core.app.ActivityCompat;
         import androidx.core.content.ContextCompat;
         import java.lang.reflect.Field;
@@ -911,18 +912,21 @@ jobs:
                     envConfig.append("VERSION_TYPE=master\n");
                     envConfig.append("CACHE_MODE=worldwide\n");
                     envConfig.append("SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co\n");
-                    envConfig.append("SUPABASE_ANON_KEY=your_master_key_here\n");
-                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.functions.supabase.co/uacx-cache\n");
+                    envConfig.append("SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ\n");
+                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache\n");
+                    envConfig.append("SUPABASE_FUNCTION_AUTH=Bearer sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ\n");
                     envConfig.append("ENABLE_DIRECT_DB_ACCESS=true\n");
                     envConfig.append("ADMIN_MODE=true\n");
+                    envConfig.append("CACHE_ALL_QUERIES=true\n");
                 } else {
                     // Standard version: local cache + federated sync
                     envConfig.append("# STANDARD VERSION - Local Cache + Federated Sync\n");
                     envConfig.append("VERSION_TYPE=standard\n");
                     envConfig.append("CACHE_MODE=federated\n");
                     envConfig.append("SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co\n");
-                    envConfig.append("SUPABASE_ANON_KEY=your_public_key_here\n");
-                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.functions.supabase.co/uacx-cache\n");
+                    envConfig.append("SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ\n");
+                    envConfig.append("SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache\n");
+                    envConfig.append("SUPABASE_FUNCTION_AUTH=Bearer sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ\n");
                     envConfig.append("ENABLE_LOCAL_CACHE=true\n");
                     envConfig.append("SYNC_TO_FEDERATED=true\n");
                     envConfig.append("ADMIN_MODE=false\n");
@@ -1111,26 +1115,6 @@ jobs:
                     buildConfigField "boolean", "IS_MASTER", "false"
                 }
                 
-                standard {
-                    initWith release
-                    applicationIdSuffix ""
-                    manifestPlaceholders = [
-                        appName: "@string/app_name"
-                    ]
-                    buildConfigField "String", "BUILD_TYPE", "\"standard\""
-                    buildConfigField "boolean", "IS_MASTER", "false"
-                }
-                
-                master {
-                    initWith release
-                    applicationIdSuffix ".master"
-                    manifestPlaceholders = [
-                        appName: "@string/app_name"
-                    ]
-                    buildConfigField "String", "BUILD_TYPE", "\"master\""
-                    buildConfigField "boolean", "IS_MASTER", "true"
-                }
-                
                 release {
                     minifyEnabled true
                     shrinkResources true
@@ -1139,10 +1123,30 @@ jobs:
                     manifestPlaceholders = [
                         appName: "@string/app_name"
                     ]
-                    
-                    // Enterprise security
-                    buildConfigField "String", "BUILD_TYPE", '"release"'
-                    buildConfigField "boolean", "ENABLE_LOGGING", "false"
+                    buildConfigField "String", "BUILD_TYPE", "\"standard\""
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                }
+                
+                standard {
+                    initWith getByName("release")
+                    applicationIdSuffix ""
+                    manifestPlaceholders = [
+                        appName: "@string/app_name"
+                    ]
+                    buildConfigField "String", "BUILD_TYPE", "\"standard\""
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                    matchingFallbacks = ['release']
+                }
+                
+                master {
+                    initWith getByName("release")
+                    applicationIdSuffix ".master"
+                    manifestPlaceholders = [
+                        appName: "@string/app_name"
+                    ]
+                    buildConfigField "String", "BUILD_TYPE", "\"master\""
+                    buildConfigField "boolean", "IS_MASTER", "true"
+                    matchingFallbacks = ['release']
                 }
             }
             
