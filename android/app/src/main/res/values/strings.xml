@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FreeApi Enterprise</string>
+    <string name="app_name_debug">FreeApi Debug</string>
+    <string name="app_name_master">FreeApi Master</string>
+    <string name="service_name">FreeApi AI Service</string>
+    <string name="service_description">Enterprise AI API caching and acceleration service - Powered by 420White,LLC</string>
+    <string name="notification_title">FreeApi Active</string>
+    <string name="notification_text">AI request acceleration is running</string>
+    <string name="dashboard_loading">Loading FreeApi Dashboard...</string>
+    <string name="error_node_not_found">Node.js runtime not found</string>
+    <string name="error_service_failed">Failed to start FreeApi service</string>
+    <string name="powered_by">Powered and builded by 420White,LLC</string>
+</resources>

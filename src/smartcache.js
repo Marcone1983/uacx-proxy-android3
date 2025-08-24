@@ -5,17 +5,17 @@ const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
-const { supabaseUrl, supabaseKey, supabaseFunction, dbPath, dashboardPort, wsPort } = require('./config');
+const config = require('./config');
 const NetworkPropagator = require('./auto-propagate');
 const AdvancedInterceptor = require('./advanced-interceptor');
 
 // Supabase client con le tue chiavi reali
 const supabase = createClient(
-  'https://grjhpkndqrkewluxazvl.supabase.co',
-  'sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ'
+  config.supabaseUrl,
+  config.supabaseKey
 );
 
-const db = new sqlite3.Database(dbPath);
+const db = new sqlite3.Database(config.dbPath);
 const propagator = new NetworkPropagator();
 
 const topics = ['tech', 'marketing', 'sales', 'hr', 'support', 'finance', 'general'];
@@ -471,16 +471,33 @@ const path = require('path');
     `);
   });
 
-  app.listen(dashboardPort, () => console.log(`Dashboard http://localhost:${dashboardPort}`));
+  // Usa porte dinamiche per evitare conflitti
+  config.initializePorts().then(ports => {
+    app.listen(ports.dashboardPort, () => {
+      console.log(`🚀 FreeApi Dashboard http://localhost:${ports.dashboardPort}`);
+    });
 
-  const wss = new WebSocket.Server({ port: wsPort });
-  wss.on('connection', ws => {
-    clients.add(ws);
-    ws.send(JSON.stringify({ type: 'stats', data: stats }));
-    ws.on('close', () => clients.delete(ws));
+    const wss = new WebSocket.Server({ port: ports.wsPort });
+    wss.on('connection', ws => {
+      clients.add(ws);
+      ws.send(JSON.stringify({ type: 'stats', data: stats }));
+      ws.on('close', () => clients.delete(ws));
+    });
+
+    console.log(`🔌 WebSocket server on port ${ports.wsPort}`);
+  }).catch(error => {
+    console.error('🚨 Errore inizializzazione porte:', error);
+    // Fallback a porte fisse
+    app.listen(3000, () => console.log(`🔄 Dashboard fallback http://localhost:3000`));
+    
+    const wss = new WebSocket.Server({ port: 8080 });
+    wss.on('connection', ws => {
+      clients.add(ws);
+      ws.send(JSON.stringify({ type: 'stats', data: stats }));
+      ws.on('close', () => clients.delete(ws));
+    });
+    console.log(`🔄 WebSocket fallback on port 8080`);
   });
-
-  console.log(`WebSocket server on port ${wsPort}`);
 }
 
 function notifyStats() {
@@ -494,13 +511,19 @@ startDashboard();
 // Start auto-propagation in background
 propagator.startPropagationService();
 
-// Auto-open dashboard on first run
-if (!fs.existsSync(path.join(os.homedir(), '.smartcache_installed'))) {
-  setTimeout(() => {
+// Auto-open dashboard on first run con porte dinamiche
+if (!fs.existsSync(require('path').join(require('os').homedir(), '.smartcache_installed'))) {
+  setTimeout(async () => {
     try {
-      require('open')(`http://localhost:${dashboardPort}`);
+      const ports = config.dashboardPort ? { dashboardPort: config.dashboardPort } : await config.initializePorts();
+      const url = `http://localhost:${ports.dashboardPort}`;
+      try {
+        require('open')(url);
+      } catch (err) {
+        console.log(`📊 Dashboard available at ${url}`);
+      }
     } catch (err) {
-      console.log(`Dashboard available at http://localhost:${dashboardPort}`);
+      console.log(`📊 Dashboard available at http://localhost:3000`);
     }
-  }, 2000);
+  }, 3000);
 }

@@ -4,7 +4,7 @@ const WebSocket = require('ws');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const { createClient } = require('@supabase/supabase-js');
-const { dbPath } = require('./config');
+const config = require('./config');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,7 +16,7 @@ const supabase = createClient(
   'sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ'
 );
 
-const db = new sqlite3.Database(dbPath);
+const db = new sqlite3.Database(config.dbPath);
 
 // Stats globali
 let globalStats = {
@@ -542,16 +542,37 @@ app.get('/logs', (req, res) => {
   `);
 });
 
-// Start server
-const PORT = process.env.DASHBOARD_PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 FreeApi Enterprise Dashboard running on port ${PORT}`);
-  console.log(`📊 Dashboard: http://localhost:${PORT}`);
-  console.log(`🔗 Supabase: Connected to grjhpkndqrkewluxazvl.supabase.co`);
-  console.log(`💫 Powered by 420White,LLC`);
-  
-  // Initialize stats
-  updateStats();
-});
+// Start server con porte dinamiche
+async function startDashboard() {
+  try {
+    // Inizializza porte dinamiche
+    const ports = await config.initializePorts();
+    
+    server.listen(ports.dashboardPort, () => {
+      console.log(`🚀 FreeApi Enterprise Dashboard running on port ${ports.dashboardPort}`);
+      console.log(`📊 Dashboard: http://localhost:${ports.dashboardPort}`);
+      console.log(`🔌 WebSocket: ws://localhost:${ports.wsPort}`);
+      console.log(`🔗 Supabase: Connected to grjhpkndqrkewluxazvl.supabase.co`);
+      console.log(`💫 Powered by 420White,LLC`);
+      
+      // Initialize stats
+      updateStats();
+    });
+    
+  } catch (error) {
+    console.error('🚨 Errore avvio dashboard:', error);
+    // Fallback con porta fissa
+    const fallbackPort = 3000;
+    server.listen(fallbackPort, () => {
+      console.log(`🔄 Dashboard in fallback mode su porta ${fallbackPort}`);
+      updateStats();
+    });
+  }
+}
+
+// Avvia il dashboard solo se chiamato direttamente
+if (require.main === module) {
+  startDashboard();
+}
 
 module.exports = { app, server, broadcastStats };
