@@ -1,0 +1,148 @@
+name: Build Android APK Only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'package.json'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [debug, standard, master]
+      fail-fast: false
+    
+    steps:
+    - name: 🔄 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: ⚙️ Setup Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        
+    - name: ☕ Setup JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: 🤖 Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        cmdline-tools-version: 12266719
+        accept-android-sdk-licenses: true
+        packages: tools platform-tools platforms;android-34 build-tools;34.0.0
+        
+    - name: 🔧 Install Node.js dependencies
+      run: |
+        echo "🔧 Installing dependencies..."
+        npm install --production
+        
+    - name: 📱 Download Node.js for Android
+      run: |
+        echo "📥 Downloading Node.js for Android ARM64..."
+        mkdir -p android/app/src/main/assets/nodejs-project/bin
+        wget -q https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-arm64.tar.gz
+        tar -xzf node-v20.18.0-linux-arm64.tar.gz
+        cp node-v20.18.0-linux-arm64/bin/node android/app/src/main/assets/nodejs-project/bin/
+        chmod +x android/app/src/main/assets/nodejs-project/bin/node
+        
+    - name: 📦 Package project for Android
+      run: |
+        echo "📦 Packaging project..."
+        PROJECT_DIR="android/app/src/main/assets/nodejs-project"
+        
+        cp -r src "$PROJECT_DIR/"
+        cp package.json "$PROJECT_DIR/"
+        cp -r node_modules "$PROJECT_DIR/"
+        
+        # Create .env file
+        cat > "$PROJECT_DIR/.env" << 'EOF'
+NODE_ENV=production
+SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ
+ANDROID_BUILD=true
+EOF
+        
+        echo "✅ Project packaged: $(du -sh "$PROJECT_DIR" | cut -f1)"
+        
+    - name: 🔨 Create Gradle build files
+      run: |
+        cd android
+        
+        # Create root build.gradle
+        cat > build.gradle << 'EOF'
+buildscript {
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.5.2'
+    }
+}
+
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
+EOF
+        
+        # Create simple build.gradle for app
+        cat > app/build.gradle << 'EOF'
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.freeapi.accelerator'
+    compileSdk 34
+    
+    defaultConfig {
+        applicationId "com.freeapi.accelerator"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "2.0.0"
+    }
+    
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+}
+EOF
+        
+    - name: 🏗️ Build APK
+      run: |
+        cd android
+        
+        # Install Gradle wrapper
+        gradle wrapper --gradle-version 8.5
+        chmod +x gradlew
+        
+        # Build debug APK (simplified)
+        ./gradlew assembleDebug --stacktrace --info
+        
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: freeapi-android-${{ matrix.variant }}
+        path: android/app/build/outputs/apk/**/*.apk
+        retention-days: 30
