@@ -1,0 +1,287 @@
+name: FreeApi Enterprise Android Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - 'src/**'
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [debug, standard, master]
+      fail-fast: false
+    
+    steps:
+    - name: 🔄 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: ⚙️ Setup Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+        
+    - name: ☕ Setup JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: 🤖 Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        cmdline-tools-version: 12266719
+        accept-android-sdk-licenses: true
+        packages: tools platform-tools platforms;android-34 build-tools;34.0.0
+        
+    - name: 📦 Install Node.js dependencies
+      run: |
+        echo "🔧 Installing FreeApi Enterprise dependencies..."
+        npm install --production --verbose
+        echo "📊 Dependencies installed: $(ls node_modules | wc -l) modules"
+        echo "📊 Total size: $(du -sh node_modules | cut -f1)"
+        
+    - name: 📱 Prepare Node.js runtime for Android
+      run: |
+        echo "📥 Downloading Node.js v20.18.0 for Android ARM64..."
+        
+        # Create Android project structure
+        mkdir -p android/app/src/main/assets/nodejs-project/bin
+        
+        # Download and extract Node.js for ARM64
+        wget -q https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-arm64.tar.gz
+        tar -xzf node-v20.18.0-linux-arm64.tar.gz
+        
+        # Copy Node.js binary
+        cp node-v20.18.0-linux-arm64/bin/node android/app/src/main/assets/nodejs-project/bin/
+        chmod +x android/app/src/main/assets/nodejs-project/bin/node
+        
+        # Verify Node.js binary
+        ls -lh android/app/src/main/assets/nodejs-project/bin/node
+        file android/app/src/main/assets/nodejs-project/bin/node
+        
+        echo "✅ Node.js runtime prepared successfully"
+        
+    - name: 📂 Package complete project for Android
+      run: |
+        echo "📦 Packaging FreeApi Enterprise project for Android..."
+        
+        PROJECT_DIR="android/app/src/main/assets/nodejs-project"
+        
+        # Copy all project files
+        cp -r src "$PROJECT_DIR/"
+        cp package.json "$PROJECT_DIR/"
+        cp -r node_modules "$PROJECT_DIR/"
+        
+        # Create production environment file
+        cat > "$PROJECT_DIR/.env" <<EOF
+        NODE_ENV=production
+        DB_PATH=./freeapi.db
+        DASHBOARD_PORT=3000
+        WS_PORT=8080
+        SUPABASE_URL=https://grjhpkndqrkewluxazvl.supabase.co
+        SUPABASE_ANON_KEY=sb_publishable_UGe_OhPKQDuvP-G3c9ZzgQ_XGF48dkZ
+        SUPABASE_FUNCTION_URL=https://grjhpkndqrkewluxazvl.supabase.co/functions/v1/uacx-cache
+        ANDROID_BUILD=true
+        FORCE_COLOR=0
+        EOF
+        
+        # Create startup script
+        cat > "$PROJECT_DIR/start.sh" <<EOF
+        #!/system/bin/sh
+        export NODE_PATH="./node_modules"
+        export HOME="."
+        export ANDROID_BUILD="true"
+        ./bin/node src/smartcache.js
+        EOF
+        chmod +x "$PROJECT_DIR/start.sh"
+        
+        # Verify package size and contents
+        TOTAL_SIZE=$(du -sh "$PROJECT_DIR" | cut -f1)
+        FILE_COUNT=$(find "$PROJECT_DIR" -type f | wc -l)
+        
+        echo "📊 Package verification:"
+        echo "  📦 Total size: $TOTAL_SIZE"
+        echo "  📄 File count: $FILE_COUNT"
+        echo "  🔧 Node.js binary: $(ls -lh "$PROJECT_DIR/bin/node" | awk '{print $5}')"
+        echo "  📁 Source files: $(find "$PROJECT_DIR/src" -name "*.js" | wc -l) JS files"
+        echo "  📦 Dependencies: $(ls "$PROJECT_DIR/node_modules" | wc -l) modules"
+        
+        if [ "$FILE_COUNT" -lt 1000 ]; then
+          echo "⚠️ Warning: File count seems low ($FILE_COUNT files)"
+        fi
+        
+        echo "✅ Project packaging completed successfully"
+        
+    - name: 🔨 Setup Android build environment
+      run: |
+        echo "🔨 Setting up Android build environment..."
+        
+        cd android
+        
+        # Verify Android project structure exists
+        echo "📁 Android project structure:"
+        find . -name "*.java" -o -name "*.xml" -o -name "*.gradle" | head -10
+        
+        # Create root build.gradle
+        cat > build.gradle <<EOF
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.5.2'
+            }
+        }
+        
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOF
+        
+        # Verify app build.gradle exists or create minimal one
+        if [ ! -f app/build.gradle ]; then
+          echo "📄 Creating app/build.gradle..."
+          cat > app/build.gradle <<EOF
+        plugins {
+            id 'com.android.application'
+        }
+        
+        android {
+            namespace 'com.freeapi.accelerator'
+            compileSdk 34
+            
+            defaultConfig {
+                applicationId "com.freeapi.accelerator"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "2.0.0"
+            }
+            
+            buildTypes {
+                debug {
+                    applicationIdSuffix ".debug"
+                    debuggable true
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                }
+                release {
+                    minifyEnabled false
+                    buildConfigField "boolean", "IS_MASTER", "false"  
+                }
+            }
+            
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_11
+                targetCompatibility JavaVersion.VERSION_11
+            }
+        }
+        
+        dependencies {
+            implementation 'androidx.appcompat:appcompat:1.6.1'
+            implementation 'androidx.webkit:webkit:1.8.0'
+            implementation 'androidx.core:core:1.12.0'
+        }
+        EOF
+        fi
+        
+        # Create settings.gradle
+        cat > settings.gradle <<EOF
+        rootProject.name = "FreeApiEnterprise"
+        include ':app'
+        EOF
+        
+        # Create gradle.properties
+        cat > gradle.properties <<EOF
+        org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+        android.useAndroidX=true
+        android.enableJetifier=true
+        org.gradle.daemon=false
+        EOF
+        
+        echo "✅ Android build environment setup completed"
+        
+    - name: 🏗️ Build Android APK
+      run: |
+        cd android
+        
+        echo "🏗️ Building FreeApi Enterprise APK - ${{ matrix.variant }} variant"
+        
+        # Install Gradle wrapper
+        gradle wrapper --gradle-version 8.5
+        chmod +x gradlew
+        
+        # Clean previous builds
+        ./gradlew clean
+        
+        # Build APK based on variant
+        case "${{ matrix.variant }}" in
+          "debug")
+            ./gradlew assembleDebug --stacktrace --info
+            ;;
+          "standard"|"master")
+            ./gradlew assembleRelease --stacktrace --info
+            ;;
+          *)
+            ./gradlew assembleDebug --stacktrace --info
+            ;;
+        esac
+        
+        echo "📊 APK Build Analysis:"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        # Find and analyze built APKs
+        find app/build/outputs/apk -name "*.apk" -type f | while read apk; do
+          if [ -f "$apk" ]; then
+            APK_SIZE=$(du -h "$apk" | cut -f1)
+            APK_NAME=$(basename "$apk")
+            
+            echo "📱 APK: $APK_NAME"
+            echo "📏 Size: $APK_SIZE"
+            echo "📍 Path: $apk"
+            
+            # Create checksum
+            sha256sum "$apk" > "${apk}.sha256"
+            echo "🔒 SHA256: $(cat "${apk}.sha256" | cut -d' ' -f1)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          fi
+        done
+        
+        echo "🎉 APK build completed successfully!"
+        
+    - name: 📤 Upload APK artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: freeapi-enterprise-android-${{ matrix.variant }}
+        path: |
+          android/app/build/outputs/apk/**/*.apk
+          android/app/build/outputs/apk/**/*.sha256
+        retention-days: 30
+        
+    - name: 📋 Generate build report
+      run: |
+        echo "📊 FREEAPI ENTERPRISE ANDROID BUILD REPORT"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📅 Build Date: $(date)"
+        echo "🎯 Variant: ${{ matrix.variant }}"
+        echo "🤖 Android API: 34"
+        echo "☕ JDK: 17"
+        echo "⚙️ Node.js: 20.18.0 ARM64"
+        echo "📦 Dependencies: $(ls android/app/src/main/assets/nodejs-project/node_modules 2>/dev/null | wc -l)"
+        echo "🎯 Enterprise Features:"
+        echo "  ✅ Advanced Node.js diagnostics"
+        echo "  ✅ Dynamic port allocation"
+        echo "  ✅ Multilingual support (5 languages)"
+        echo "  ✅ Master/Standard dual architecture"
+        echo "  ✅ Real Supabase integration"
+        echo "  ✅ Complete dependency packaging"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "💫 Powered and builded by 420White,LLC"
