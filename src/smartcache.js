@@ -9,6 +9,16 @@ const config = require('./config');
 const NetworkPropagator = require('./auto-propagate');
 const AdvancedInterceptor = require('./advanced-interceptor');
 
+// 🔥 FreeApi Enterprise Pricing Constants
+const CRYPTO_WALLET = '0x15315077b2C2bA625bc0bc156415F704208FBd45';
+const PRICING_TIERS = {
+  PRIVATE: { price: 50, users: 5, queries: 10000 },
+  ADVANCED: { price: 500, users: 50, queries: 100000 },
+  ENTERPRISE: { price: 5000, users: -1, queries: -1 }
+};
+const SUPPORTED_NETWORKS = ['ETH', 'Polygon (POS)', 'BSC'];
+const SUPPORTED_TOKENS = ['USDC', 'USDT'];
+
 // Supabase client con le tue chiavi reali
 const supabase = createClient(
   config.supabaseUrl,
@@ -375,9 +385,58 @@ const path = require('path');
       </head>
       <body>
         <div class="container">
-          <h1>🚀 SmartCache AI Enterprise</h1>
+          <h1>🚀 FreeApi Enterprise</h1>
           <div class="client-info">
-            <strong>Client:</strong> ${hostname} | <strong>Network:</strong> ${os.networkInterfaces().Ethernet?.[0]?.address || 'Unknown'}
+            <strong>Version:</strong> ${process.env.VERSION_TYPE === 'master' ? 'MASTER - Database Mondiale' : 'STANDARD - Cache Locale'} | 
+            <strong>Client:</strong> ${hostname}
+          </div>
+          
+          <div class="pricing-section" style="background: rgba(255,255,255,0.95); color: #333; padding: 30px; border-radius: 15px; margin-bottom: 30px; text-align: center;">
+            <h2 style="color: #FF6B35; margin-bottom: 25px;">💰 Enterprise Pricing</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+              <div style="border: 3px solid #4CAF50; border-radius: 12px; padding: 25px; background: #f8f9fa;">
+                <h3 style="color: #4CAF50; margin: 0 0 15px 0;">🏠 PRIVATE</h3>
+                <div style="font-size: 2.5em; font-weight: bold; color: #333;">€50</div>
+                <div style="color: #666; margin: 10px 0;">per month</div>
+                <div style="text-align: left; margin-top: 15px; line-height: 1.6;">
+                  ✓ 1-5 users<br>
+                  ✓ 10,000 queries/month<br>
+                  ✓ Basic analytics<br>
+                  ✓ Local cache
+                </div>
+              </div>
+              <div style="border: 3px solid #FF6B35; border-radius: 12px; padding: 25px; background: #fff; box-shadow: 0 8px 25px rgba(255,107,53,0.2);">
+                <h3 style="color: #FF6B35; margin: 0 0 15px 0;">🏢 ADVANCED</h3>
+                <div style="font-size: 2.5em; font-weight: bold; color: #333;">€500</div>
+                <div style="color: #666; margin: 10px 0;">per month</div>
+                <div style="text-align: left; margin-top: 15px; line-height: 1.6;">
+                  ✓ Up to 50 employees<br>
+                  ✓ 100,000 queries/month<br>
+                  ✓ Advanced analytics<br>
+                  ✓ Multi-language support<br>
+                  ✓ Priority support
+                </div>
+              </div>
+              <div style="border: 3px solid #6C5CE7; border-radius: 12px; padding: 25px; background: #f8f9fa;">
+                <h3 style="color: #6C5CE7; margin: 0 0 15px 0;">🏗️ ENTERPRISE</h3>
+                <div style="font-size: 2.5em; font-weight: bold; color: #333;">€5,000</div>
+                <div style="color: #666; margin: 10px 0;">per month</div>
+                <div style="text-align: left; margin-top: 15px; line-height: 1.6;">
+                  ✓ Unlimited employees<br>
+                  ✓ Unlimited queries<br>
+                  ✓ Full analytics suite<br>
+                  ✓ SLA guarantee<br>
+                  ✓ On-premise deployment<br>
+                  ✓ 24/7 dedicated support
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 25px; padding: 20px; background: #1a1a1a; border-radius: 10px; color: #fff;">
+              <strong>💳 Payment: USDC/USDT on ETH, Polygon (POS), BSC</strong><br>
+              <div style="font-family: monospace; font-size: 0.9em; margin-top: 10px; color: #00ff00;">
+                Wallet: ${CRYPTO_WALLET}
+              </div>
+            </div>
           </div>
           
           <div class="section-title">📊 Local Statistics</div>

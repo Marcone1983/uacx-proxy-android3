@@ -527,7 +527,7 @@ jobs:
                 italian.put("welcome", "Benvenuto in FreeApi");
                 italian.put("select_language", "Seleziona la tua lingua");
                 italian.put("powered_by", "Powered and builded by 420White,LLC");
-                italian.put("ai_accelerator", "Acceleratore AI Gratuito");
+                italian.put("ai_accelerator", "Acceleratore AI Enterprise");
                 italian.put("version_standard", "Versione Standard - Cache Locale + Sync Federato");
                 italian.put("version_master", "Versione Master - Accesso Database Mondiale");
                 italian.put("loading", "Caricamento in corso...");
@@ -540,7 +540,7 @@ jobs:
                 english.put("welcome", "Welcome to FreeApi");
                 english.put("select_language", "Select your language");
                 english.put("powered_by", "Powered and builded by 420White,LLC");
-                english.put("ai_accelerator", "Free AI Accelerator");
+                english.put("ai_accelerator", "Enterprise AI Accelerator");
                 english.put("version_standard", "Standard Version - Local Cache + Federated Sync");
                 english.put("version_master", "Master Version - Worldwide Database Access");
                 english.put("loading", "Loading...");
@@ -553,7 +553,7 @@ jobs:
                 spanish.put("welcome", "Bienvenido a FreeApi");
                 spanish.put("select_language", "Selecciona tu idioma");
                 spanish.put("powered_by", "Powered and builded by 420White,LLC");
-                spanish.put("ai_accelerator", "Acelerador AI Gratuito");
+                spanish.put("ai_accelerator", "Acelerador AI Enterprise");
                 spanish.put("version_standard", "Versión Estándar - Caché Local + Sync Federado");
                 spanish.put("version_master", "Versión Master - Acceso Base de Datos Mundial");
                 spanish.put("loading", "Cargando...");
@@ -566,7 +566,7 @@ jobs:
                 french.put("welcome", "Bienvenue dans FreeApi");
                 french.put("select_language", "Sélectionnez votre langue");
                 french.put("powered_by", "Powered and builded by 420White,LLC");
-                french.put("ai_accelerator", "Accélérateur AI Gratuit");
+                french.put("ai_accelerator", "Accélérateur AI Enterprise");
                 french.put("version_standard", "Version Standard - Cache Local + Sync Fédéré");
                 french.put("version_master", "Version Master - Accès Base de Données Mondiale");
                 french.put("loading", "Chargement...");
@@ -579,7 +579,7 @@ jobs:
                 german.put("welcome", "Willkommen bei FreeApi");
                 german.put("select_language", "Wählen Sie Ihre Sprache");
                 german.put("powered_by", "Powered and builded by 420White,LLC");
-                german.put("ai_accelerator", "Kostenloser AI-Beschleuniger");
+                german.put("ai_accelerator", "Enterprise AI-Beschleuniger");
                 german.put("version_standard", "Standard Version - Lokaler Cache + Föderierte Sync");
                 german.put("version_master", "Master Version - Weltweiter Datenbankzugriff");
                 german.put("loading", "Laden...");
@@ -1200,10 +1200,35 @@ jobs:
                     try {
                         smartcacheScript = new File(projectDir, "server.js");
                         FileWriter writer = new FileWriter(smartcacheScript);
-                        writer.write("require('http').createServer((q,s)=>{" +
-                            "s.writeHead(200,{'Content-Type':'text/html'});" +
-                            "s.end('<h1>FreeApi</h1><p>Loading...</p><p>Powered by 420White,LLC</p>');" +
-                            "}).listen(3000,'0.0.0.0',()=>console.log('Server on 3000'));");
+                        writer.write("console.log('🚀 FreeApi Enterprise Starting - 420White,LLC');\n" +
+                            "const http = require('http');\n" +
+                            "const PORT = 3000;\n" +
+                            "const WALLET_ADDRESS = '0x15315077b2C2bA625bc0bc156415F704208FBd45';\n" +
+                            "const server = http.createServer((req, res) => {\n" +
+                            "  const isM = (process.env.VERSION_TYPE === 'master');\n" +
+                            "  const version = isM ? 'MASTER - Database Mondiale' : 'STANDARD - Cache Locale';\n" +
+                            "  res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});\n" +
+                            "  res.end(`<!DOCTYPE html><html><head><meta charset='utf-8'><title>FreeApi Enterprise</title>" +
+                            "<style>body{font-family:Arial;background:linear-gradient(45deg,#FF6B35,#F7931E);color:#fff;margin:0;padding:20px}" +
+                            ".container{max-width:800px;margin:0 auto;text-align:center}" +
+                            ".version{background:rgba(0,0,0,0.2);padding:20px;border-radius:10px;margin:20px 0}" +
+                            ".pricing{background:#fff;color:#333;padding:30px;border-radius:15px;margin:30px 0}" +
+                            ".tier{display:inline-block;margin:15px;padding:20px;border:2px solid #FF6B35;border-radius:10px;min-width:200px}" +
+                            ".wallet{font-family:monospace;background:#000;color:#0f0;padding:10px;border-radius:5px}</style></head>" +
+                            "<body><div class='container'><h1>🚀 FreeApi Enterprise</h1>" +
+                            "<div class='version'><h2>${version}</h2><p>Enterprise AI Accelerator Cache System</p></div>" +
+                            "<div class='pricing'><h3>💰 Enterprise Pricing</h3>" +
+                            "<div class='tier'><h4>PRIVATE</h4><p>€50/month<br>1-5 users<br>10K queries</p></div>" +
+                            "<div class='tier'><h4>ADVANCED</h4><p>€500/month<br>50 employees<br>100K queries</p></div>" +
+                            "<div class='tier'><h4>ENTERPRISE</h4><p>€5000/month<br>Unlimited users<br>Unlimited queries</p></div>" +
+                            "<p><strong>Payment: USDC/USDT on ETH/Polygon/BSC</strong></p>" +
+                            "<div class='wallet'>Wallet: ${WALLET_ADDRESS}</div></div>" +
+                            "<p>Powered by 420White,LLC</p></div></body></html>`);\n" +
+                            "});\n" +
+                            "server.listen(PORT, '0.0.0.0', () => {\n" +
+                            "  console.log(`✅ FreeApi Enterprise Dashboard running on port ${PORT}`);\n" +
+                            "  console.log(`🎯 Version: ${process.env.VERSION_TYPE || 'standard'}`);\n" +
+                            "});\n");
                         writer.close();
                         Log.i(TAG, "✅ Fallback server created");
                     } catch (Exception e) {
