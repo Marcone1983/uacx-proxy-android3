@@ -1951,8 +1951,8 @@ jobs:
         </shape>
         EOF
         
-        # Add splash color
-        cat >> android/app/src/main/res/values/colors.xml << 'EOF'
+        # Create colors.xml with FreeApi branding colors
+        cat > android/app/src/main/res/values/colors.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
             <color name="splash_color">#FF6B35</color>
