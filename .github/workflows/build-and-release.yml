@@ -819,6 +819,7 @@ jobs:
         import android.os.IBinder;
         import android.util.Log;
         import java.io.*;
+        import java.util.Map;
         import java.util.concurrent.ExecutorService;
         import java.util.concurrent.Executors;
         
@@ -1169,8 +1170,8 @@ jobs:
                     Log.i(TAG, "✅ Process created successfully");
                     
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        Log.i(TAG, "🆔 Process PID: " + nodeProcess.pid());
                         Log.i(TAG, "🔄 Process alive: " + nodeProcess.isAlive());
+                        Log.i(TAG, "🆔 Node.js process started successfully");
                     }
                     
                 } catch (IOException e) {
