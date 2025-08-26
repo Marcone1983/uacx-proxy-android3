@@ -178,7 +178,7 @@ jobs:
     - name: Create Android project structure
       run: |
         mkdir -p android/app/src/main/assets/nodejs-project
-        mkdir -p android/app/src/main/java/com/freeapi
+        mkdir -p android/app/src/main/java/com/freeapi/accelerator
         mkdir -p android/app/src/main/res/values
         
     - name: Install dependencies with native compilation
@@ -384,7 +384,7 @@ jobs:
         
     - name: Create Android MainActivity with Language Selection
       run: |
-        cat > android/app/src/main/java/com/freeapi/MainActivity.java << 'EOF'
+        cat > android/app/src/main/java/com/freeapi/accelerator/MainActivity.java << 'EOF'
         package com.freeapi.accelerator;
         
         import android.Manifest;
@@ -806,7 +806,7 @@ jobs:
         
     - name: Create SmartCache Android Service
       run: |
-        cat > android/app/src/main/java/com/freeapi/SmartCacheService.java << 'EOF'
+        cat > android/app/src/main/java/com/freeapi/accelerator/SmartCacheService.java << 'EOF'
         package com.freeapi.accelerator;
         
         import android.app.Notification;
@@ -2041,7 +2041,7 @@ jobs:
         
     - name: Create BootReceiver for auto-start
       run: |
-        cat > android/app/src/main/java/com/freeapi/BootReceiver.java << 'EOF'
+        cat > android/app/src/main/java/com/freeapi/accelerator/BootReceiver.java << 'EOF'
         package com.freeapi.accelerator;
         
         import android.content.BroadcastReceiver;
