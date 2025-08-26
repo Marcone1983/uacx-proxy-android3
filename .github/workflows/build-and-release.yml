@@ -859,18 +859,6 @@ jobs:
                     startApp();
                 }
             }
-            
-            private void detectVersionType() {
-                try {
-                    Class<?> buildConfigClass = Class.forName(getPackageName() + ".BuildConfig");
-                    java.lang.reflect.Field isMasterField = buildConfigClass.getField("IS_MASTER");
-                    isMasterVersion = (Boolean) isMasterField.get(null);
-                    Log.i("MainActivity", "Version detected: " + (isMasterVersion ? "MASTER" : "STANDARD"));
-                } catch (Exception e) {
-                    Log.w("MainActivity", "Could not detect version type, defaulting to STANDARD", e);
-                    isMasterVersion = false;
-                }
-            }
         }
         EOF
         
