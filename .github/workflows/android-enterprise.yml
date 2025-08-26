@@ -147,10 +147,9 @@ jobs:
         }
         EOF
         
-        # Verify app build.gradle exists or create minimal one
-        if [ ! -f app/build.gradle ]; then
-          echo "📄 Creating app/build.gradle..."
-          cat > app/build.gradle <<EOF
+        # Create optimized app build.gradle with buildConfig enabled
+        echo "📄 Creating optimized app/build.gradle..."
+        cat > app/build.gradle <<EOF
         plugins {
             id 'com.android.application'
         }
@@ -165,6 +164,14 @@ jobs:
                 targetSdk 34
                 versionCode 1
                 versionName "2.0.0"
+                
+                ndk {
+                    abiFilters 'arm64-v8a'
+                }
+            }
+            
+            buildFeatures {
+                buildConfig true
             }
             
             buildTypes {
@@ -172,16 +179,24 @@ jobs:
                     applicationIdSuffix ".debug"
                     debuggable true
                     buildConfigField "boolean", "IS_MASTER", "false"
+                    manifestPlaceholders = [appName: "FreeApi Debug"]
                 }
                 release {
                     minifyEnabled false
-                    buildConfigField "boolean", "IS_MASTER", "false"  
+                    buildConfigField "boolean", "IS_MASTER", "false"
+                    manifestPlaceholders = [appName: "FreeApi Enterprise"]
                 }
             }
             
             compileOptions {
                 sourceCompatibility JavaVersion.VERSION_11
                 targetCompatibility JavaVersion.VERSION_11
+            }
+            
+            packaging {
+                resources {
+                    pickFirsts += ['**/libc++_shared.so', '**/libnode.so']
+                }
             }
         }
         
@@ -191,7 +206,6 @@ jobs:
             implementation 'androidx.core:core:1.12.0'
         }
         EOF
-        fi
         
         # Create settings.gradle
         cat > settings.gradle <<EOF
@@ -207,6 +221,19 @@ jobs:
         org.gradle.daemon=false
         EOF
         
+        # Create placeholder app icon if missing
+        mkdir -p app/src/main/res/mipmap-mdpi
+        if [ ! -f app/src/main/res/mipmap-mdpi/ic_launcher.png ]; then
+          # Create a simple 48x48 PNG icon using ImageMagick
+          convert -size 48x48 xc:#FF6B35 -fill white -pointsize 24 -gravity center -draw "text 0,0 'FA'" app/src/main/res/mipmap-mdpi/ic_launcher.png || {
+            # Fallback: copy a system icon
+            cp /system/framework/res/drawable-mdpi/sym_def_app_icon.png app/src/main/res/mipmap-mdpi/ic_launcher.png 2>/dev/null || {
+              # Ultimate fallback: create minimal file
+              echo "Placeholder icon" > app/src/main/res/mipmap-mdpi/ic_launcher.png
+            }
+          }
+        fi
+        
         echo "✅ Android build environment setup completed"
         
     - name: 🏗️ Build Android APK
@@ -215,9 +242,15 @@ jobs:
         
         echo "🏗️ Building FreeApi Enterprise APK - ${{ matrix.variant }} variant"
         
-        # Install Gradle wrapper
+        # Install Gradle wrapper with compatible version
         gradle wrapper --gradle-version 8.5
         chmod +x gradlew
+        
+        # Verify Gradle wrapper
+        echo "📋 Gradle wrapper verification:"
+        ls -la gradlew gradle/wrapper/
+        echo "Gradle version:"
+        ./gradlew --version || echo "Gradle version check failed"
         
         # Clean previous builds
         ./gradlew clean
