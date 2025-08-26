@@ -859,6 +859,18 @@ jobs:
                     startApp();
                 }
             }
+            
+            private void detectVersionType() {
+                try {
+                    Class<?> buildConfigClass = Class.forName(getPackageName() + ".BuildConfig");
+                    java.lang.reflect.Field isMasterField = buildConfigClass.getField("IS_MASTER");
+                    isMasterVersion = (Boolean) isMasterField.get(null);
+                    Log.i("MainActivity", "Version detected: " + (isMasterVersion ? "MASTER" : "STANDARD"));
+                } catch (Exception e) {
+                    Log.w("MainActivity", "Could not detect version type, defaulting to STANDARD", e);
+                    isMasterVersion = false;
+                }
+            }
         }
         EOF
         
@@ -887,6 +899,8 @@ jobs:
             private static final int NOTIFICATION_ID = 1;
             private ExecutorService executor;
             private Process nodeProcess;
+            private boolean isMasterVersion = false;
+            private String currentLanguage = "en";
             
             @Override
             public void onCreate() {
@@ -897,11 +911,13 @@ jobs:
             
             @Override
             public int onStartCommand(Intent intent, int flags, int startId) {
-                boolean isMaster = intent != null && intent.getBooleanExtra("isMaster", false);
-                String language = intent != null ? intent.getStringExtra("language") : "en";
+                isMasterVersion = intent != null && intent.getBooleanExtra("isMaster", false);
+                currentLanguage = intent != null ? intent.getStringExtra("language") : "en";
                 
-                String notificationTitle = isMaster ? "FreeApi Master Active" : "FreeApi Standard Active";
-                String notificationText = isMaster ? "Master Database Access Running" : "Local Cache + Federated Sync Running";
+                Log.i(TAG, "🎯 Service started with version: " + (isMasterVersion ? "MASTER" : "STANDARD"));
+                
+                String notificationTitle = isMasterVersion ? "FreeApi Master Active" : "FreeApi Standard Active";
+                String notificationText = isMasterVersion ? "Master Database Access Running" : "Local Cache + Federated Sync Running";
                 
                 startForeground(NOTIFICATION_ID, createNotification(notificationTitle, notificationText));
                 
@@ -911,7 +927,7 @@ jobs:
                         extractNodeProject();
                         
                         // Configure environment for Standard vs Master
-                        configureEnvironment(isMaster, language);
+                        configureEnvironment(isMasterVersion, currentLanguage);
                         
                         // Start Node.js FreeApi
                         startNodeProcess();
@@ -1232,6 +1248,11 @@ jobs:
                 // Android-specific environment
                 env.put("ANDROID_ROOT", "/system");
                 env.put("ANDROID_DATA", "/data");
+                
+                // FreeApi version detection - CRITICAL for Master/Standard distinction
+                String versionType = isMasterVersion ? "master" : "standard";
+                env.put("VERSION_TYPE", versionType);
+                Log.i(TAG, "🎯 VERSION_TYPE configured: " + versionType);
                 
                 Log.i(TAG, "🌍 Environment Variables:");
                 for (Map.Entry<String, String> entry : env.entrySet()) {
