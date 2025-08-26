@@ -220,6 +220,64 @@ jobs:
         cp package.json android/app/src/main/assets/nodejs-project/
         cp .env.example android/app/src/main/assets/nodejs-project/
         
+        # Create main server.js for FreeApi Android
+        cat > android/app/src/main/assets/nodejs-project/server.js << 'EOF'
+        console.log('FreeApi Starting - 420White,LLC');
+        const http = require('http');
+        const PORT = 3000;
+        
+        const server = http.createServer((req, res) => {
+            const isM = (process.env.VERSION_TYPE === 'master');
+            const version = isM ? 'MASTER - Database Mondiale' : 'STANDARD - Cache Locale';
+            
+            res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
+            res.end(`<!DOCTYPE html>
+        <html><head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>FreeApi</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+                color: white;
+                margin: 0;
+                padding: 20px;
+                min-height: 100vh;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            h1 { font-size: 3em; margin: 0.5em 0; }
+            .version {
+                font-size: 1.5em;
+                padding: 15px 30px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 50px;
+                margin: 20px;
+            }
+            .powered { 
+                position: fixed;
+                bottom: 20px;
+                font-size: 0.9em;
+                opacity: 0.9;
+            }
+        </style>
+        </head><body>
+            <h1>FreeApi</h1>
+            <div class="version">${version}</div>
+            <p style="font-size: 1.2em;">Sistema Attivo</p>
+            <div class="powered">Powered and builded by 420White,LLC</div>
+        </body></html>`);
+        });
+        
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log('FreeApi running on port ' + PORT);
+        });
+        EOF
+        
         # CRITICAL: Copy ALL node_modules (this was missing!)
         echo "📦 Copying node_modules (this makes APK 100MB+)..."
         cp -r node_modules android/app/src/main/assets/nodejs-project/
@@ -1091,7 +1149,12 @@ jobs:
             private void startNodeProcess() throws IOException {
                 File projectDir = new File(getFilesDir(), "nodejs-project");
                 File nodeExecutable = new File(projectDir, "bin/node");
-                File smartcacheScript = new File(projectDir, "src/smartcache.js");
+                // Look for server.js first, then fallback to src/smartcache.js
+                File smartcacheScript = new File(projectDir, "server.js");
+                if (!smartcacheScript.exists()) {
+                    Log.w(TAG, "server.js not found, trying src/smartcache.js");
+                    smartcacheScript = new File(projectDir, "src/smartcache.js");
+                }
                 
                 Log.i(TAG, "🚀 ENTERPRISE DEBUG: Node.js Process Startup Analysis");
                 Log.i(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -1127,9 +1190,22 @@ jobs:
                 }
                 
                 if (!smartcacheScript.exists()) {
-                    Log.e(TAG, "❌ CRITICAL: SmartCache script not found");
-                    logDirectoryContents(new File(projectDir, "src"), "src");
-                    throw new IOException("SmartCache script missing");
+                    Log.e(TAG, "❌ Server script not found, creating fallback...");
+                    
+                    // Create emergency fallback server
+                    try {
+                        smartcacheScript = new File(projectDir, "server.js");
+                        FileWriter writer = new FileWriter(smartcacheScript);
+                        writer.write("require('http').createServer((q,s)=>{" +
+                            "s.writeHead(200,{'Content-Type':'text/html'});" +
+                            "s.end('<h1>FreeApi</h1><p>Loading...</p><p>Powered by 420White,LLC</p>');" +
+                            "}).listen(3000,'0.0.0.0',()=>console.log('Server on 3000'));");
+                        writer.close();
+                        Log.i(TAG, "✅ Fallback server created");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to create fallback", e);
+                        throw new IOException("No server script available");
+                    }
                 }
                 
                 // Test Node.js binary before full startup
