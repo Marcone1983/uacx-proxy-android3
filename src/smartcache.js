@@ -9,7 +9,12 @@ const config = require('./config');
 const NetworkPropagator = require('./auto-propagate');
 const AdvancedInterceptor = require('./advanced-interceptor');
 
-// 🔥 FreeApi Enterprise Pricing Constants
+// 🔥 Enterprise Systems
+const cryptoPayment = require('./crypto-payment');
+const usageLimiter = require('./usage-limiter');
+const authSystem = require('./auth-system');
+
+// 🔥 FreeApi Enterprise Constants
 const CRYPTO_WALLET = '0x15315077b2C2bA625bc0bc156415F704208FBd45';
 const PRICING_TIERS = {
   PERSONAL: { price: 29, users: 1, queries: 5000, value_generated: 508 },
@@ -19,8 +24,115 @@ const PRICING_TIERS = {
   GLOBAL_SCALE: { price: 180000, users: 50000, queries: -1, value_generated: 8000000 },
   INSTITUTIONAL: { price: 500000, users: -1, queries: -1, value_generated: 50000000 }
 };
-const SUPPORTED_NETWORKS = ['ETH', 'Polygon (POS)', 'BSC'];
-const SUPPORTED_TOKENS = ['USDC', 'USDT'];
+
+// 📊 Data Analytics Engine
+class DataAnalyticsEngine {
+  constructor() {
+    this.dataValue = 0;
+    this.insights = new Map();
+    this.topicInsights = new Map();
+  }
+  
+  // Calculate data value from queries
+  processQuery(query, response, topic, clientTier) {
+    const baseValue = this.calculateQueryValue(query, response, topic);
+    const tierMultiplier = this.getTierMultiplier(clientTier);
+    const totalValue = baseValue * tierMultiplier;
+    
+    this.dataValue += totalValue;
+    this.updateTopicInsights(topic, query, response, totalValue);
+    
+    return totalValue;
+  }
+  
+  calculateQueryValue(query, response, topic) {
+    // Base value calculation
+    let value = 0.01; // Base €0.01 per query
+    
+    // Value modifiers
+    if (query.length > 100) value *= 1.5; // Complex queries
+    if (response.length > 1000) value *= 2; // Rich responses
+    
+    // Topic multipliers
+    const topicMultipliers = {
+      'tech': 2.0,
+      'finance': 3.0,
+      'healthcare': 4.0,
+      'legal': 3.5,
+      'research': 5.0,
+      'marketing': 1.5
+    };
+    
+    value *= topicMultipliers[topic] || 1.0;
+    return value;
+  }
+  
+  getTierMultiplier(tier) {
+    const multipliers = {
+      'PERSONAL': 1.0,
+      'STARTUP': 1.2,
+      'BUSINESS': 1.5,
+      'ENTERPRISE': 2.0,
+      'GLOBAL_SCALE': 3.0,
+      'INSTITUTIONAL': 5.0
+    };
+    
+    return multipliers[tier] || 1.0;
+  }
+  
+  updateTopicInsights(topic, query, response, value) {
+    if (!this.topicInsights.has(topic)) {
+      this.topicInsights.set(topic, {
+        queries: 0,
+        totalValue: 0,
+        avgQueryLength: 0,
+        avgResponseLength: 0,
+        keywords: new Map()
+      });
+    }
+    
+    const insights = this.topicInsights.get(topic);
+    insights.queries++;
+    insights.totalValue += value;
+    insights.avgQueryLength = (insights.avgQueryLength + query.length) / 2;
+    insights.avgResponseLength = (insights.avgResponseLength + response.length) / 2;
+    
+    // Extract keywords
+    const keywords = query.toLowerCase().split(' ')
+      .filter(word => word.length > 3);
+    
+    keywords.forEach(keyword => {
+      insights.keywords.set(keyword, (insights.keywords.get(keyword) || 0) + 1);
+    });
+  }
+  
+  getAnalytics() {
+    const topicAnalytics = {};
+    
+    this.topicInsights.forEach((insights, topic) => {
+      const topKeywords = Array.from(insights.keywords.entries())
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([keyword, count]) => ({ keyword, count }));
+      
+      topicAnalytics[topic] = {
+        ...insights,
+        keywords: undefined, // Remove raw map
+        topKeywords
+      };
+    });
+    
+    return {
+      totalDataValue: this.dataValue,
+      totalQueries: Array.from(this.topicInsights.values())
+        .reduce((sum, insights) => sum + insights.queries, 0),
+      topicBreakdown: topicAnalytics,
+      estimatedAnnualValue: this.dataValue * 365
+    };
+  }
+}
+
+const analyticsEngine = new DataAnalyticsEngine();
 
 // Supabase client con le tue chiavi reali
 const supabase = createClient(
@@ -353,8 +465,111 @@ function startDashboard() {
 }
   const WebSocket = require('ws');
   const os = require('os');
-const path = require('path');
-
+  const path = require('path');
+  const express = require('express');
+  const cors = require('cors');
+  
+  // Express app configuration
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  
+  // 🔒 Authentication endpoints
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password, companyName, tier } = req.body;
+      const result = await authSystem.register(email, password, companyName, tier);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const result = await authSystem.login(email, password, req.ip, req.get('User-Agent'));
+      res.json(result);
+    } catch (error) {
+      res.status(401).json({ error: error.message });
+    }
+  });
+  
+  app.post('/api/auth/refresh', async (req, res) => {
+    try {
+      const { refreshToken } = req.body;
+      const result = await authSystem.refreshAccessToken(refreshToken);
+      res.json(result);
+    } catch (error) {
+      res.status(401).json({ error: error.message });
+    }
+  });
+  
+  // 💳 Payment endpoints
+  app.post('/api/payment/verify', authSystem.authMiddleware(), async (req, res) => {
+    try {
+      const { txHash, network, token, tier } = req.body;
+      const result = await cryptoPayment.verifyPayment(
+        req.clientId, txHash, network, token, tier
+      );
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  app.get('/api/subscription', authSystem.authMiddleware(), async (req, res) => {
+    try {
+      const subscription = await cryptoPayment.checkSubscription(req.clientId);
+      res.json({ subscription });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // 📊 Analytics endpoints
+  app.get('/api/analytics', authSystem.authMiddleware(), async (req, res) => {
+    try {
+      const { days = 30 } = req.query;
+      const analytics = await usageLimiter.getUsageAnalytics(req.clientId, days);
+      const dataAnalytics = analyticsEngine.getAnalytics();
+      
+      res.json({
+        usage: analytics,
+        dataValue: dataAnalytics,
+        tier: req.auth.tier
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // 🔑 API Key management
+  app.post('/api/keys', authSystem.authMiddleware(), async (req, res) => {
+    try {
+      const { name, permissions } = req.body;
+      const result = await authSystem.createApiKey(req.clientId, name, permissions);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  app.delete('/api/keys/:keyId', authSystem.authMiddleware(), async (req, res) => {
+    try {
+      const result = await authSystem.revokeApiKey(req.clientId, req.params.keyId);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+  
+  // 🚨 Enterprise API with limits
+  app.use('/api/cache', usageLimiter.enforceMiddleware());
+  app.use('/api/cache', authSystem.authMiddleware());
+  
+  // Legacy stats endpoint
   app.get('/stats', async (_req, res) => {
     const global = await fetchGlobalStats();
     res.json({ ...stats, ...global });
