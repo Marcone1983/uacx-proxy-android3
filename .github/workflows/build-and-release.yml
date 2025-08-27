@@ -779,62 +779,109 @@ jobs:
             }
             
             private void startApp() {
+                Log.i("MainActivity", "🚀 STARTING APP");
+                Log.i("MainActivity", "Version type: " + (isMasterVersion ? "MASTER" : "STANDARD"));
+                Log.i("MainActivity", "Language: " + selectedLanguage);
+                
                 statusText.setText(getText("connecting"));
                 
                 Intent serviceIntent = new Intent(this, SmartCacheService.class);
                 serviceIntent.putExtra("isMaster", isMasterVersion);
                 serviceIntent.putExtra("language", selectedLanguage);
                 
+                Log.i("MainActivity", "🔧 Starting SmartCacheService with extras:");
+                Log.i("MainActivity", "  isMaster: " + isMasterVersion);
+                Log.i("MainActivity", "  language: " + selectedLanguage);
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(serviceIntent);
+                    Log.i("MainActivity", "✅ Foreground service started");
                 } else {
                     startService(serviceIntent);
+                    Log.i("MainActivity", "✅ Service started");
                 }
                 
-                // Wait longer and retry with better logic
-                new Handler().postDelayed(this::setupWebView, 5000);
+                // Wait longer for Node.js startup and retry with better logic
+                Log.i("MainActivity", "⏳ Waiting 8 seconds for Node.js server startup...");
+                new Handler().postDelayed(this::setupWebView, 8000);
             }
             
             private void setupWebView() {
+                Log.i("MainActivity", "🌐 SETTING UP WEBVIEW");
+                
                 webView = new WebView(this);
                 webView.getSettings().setJavaScriptEnabled(true);
                 webView.getSettings().setDomStorageEnabled(true);
                 webView.getSettings().setAllowFileAccess(true);
                 
+                Log.i("MainActivity", "✅ WebView settings configured");
+                
                 webView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                        super.onPageStarted(view, url, favicon);
+                        Log.i("MainActivity", "🔄 Page loading started: " + url);
+                    }
+                    
                     @Override
                     public void onPageFinished(WebView view, String url) {
                         super.onPageFinished(view, url);
+                        Log.i("MainActivity", "✅ PAGE LOADED SUCCESSFULLY: " + url);
+                        
                         splashLayout.setVisibility(View.GONE);
                         webView.setVisibility(View.VISIBLE);
                         retryCount = 0;
+                        
+                        statusText.setText("✅ Connected to FreeApi Enterprise!");
                     }
                     
                     @Override
                     public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                         super.onReceivedError(view, errorCode, description, failingUrl);
-                        Log.e("MainActivity", "WebView error: " + description + " for URL: " + failingUrl);
+                        Log.e("MainActivity", "❌ WebView error: " + description + " for URL: " + failingUrl);
+                        Log.e("MainActivity", "Error code: " + errorCode);
                         
                         if (retryCount < MAX_RETRIES) {
                             retryCount++;
-                            statusText.setText(getText("connecting") + " (" + retryCount + "/" + MAX_RETRIES + ")");
+                            String retryMessage = getText("connecting") + " (" + retryCount + "/" + MAX_RETRIES + ")";
+                            statusText.setText(retryMessage);
+                            Log.i("MainActivity", "🔄 Retry attempt " + retryCount + "/" + MAX_RETRIES);
                             
                             // Try different ports in case of dynamic port allocation
                             int[] portsToTry = {3000, 3001, 3002, 3003, 8000, 8001, 8002};
-                            int portIndex = retryCount % portsToTry.length;
+                            int portIndex = (retryCount - 1) % portsToTry.length;
                             String retryUrl = "http://localhost:" + portsToTry[portIndex];
                             
-                            Log.i("MainActivity", "Retrying with URL: " + retryUrl);
+                            Log.i("MainActivity", "🔄 Retrying with URL: " + retryUrl);
                             
                             new Handler().postDelayed(() -> {
                                 if (retryCount <= MAX_RETRIES) {
+                                    Log.i("MainActivity", "🚀 Loading retry URL: " + retryUrl);
                                     view.loadUrl(retryUrl);
                                 }
-                            }, 3000);
+                            }, 5000); // Increased delay to 5 seconds
                         } else {
-                            statusText.setText("Errore connessione server. Controllare logs per dettagli.");
-                            Log.e("MainActivity", "All connection attempts failed");
+                            statusText.setText("❌ Connection failed. Check logs for details.");
+                            Log.e("MainActivity", "❌ ALL CONNECTION ATTEMPTS FAILED");
+                            
+                            // Show error dialog with details
+                            new android.app.AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Connection Failed")
+                                .setMessage("Could not connect to FreeApi server. Please check logs.")
+                                .setPositiveButton("Retry", (dialog, which) -> {
+                                    retryCount = 0;
+                                    setupWebView();
+                                })
+                                .setNegativeButton("Exit", (dialog, which) -> finish())
+                                .show();
                         }
+                    }
+                    
+                    @Override
+                    public void onReceivedHttpError(WebView view, android.webkit.WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
+                        super.onReceivedHttpError(view, request, errorResponse);
+                        Log.e("MainActivity", "❌ HTTP Error: " + errorResponse.getStatusCode() + " " + errorResponse.getReasonPhrase());
+                        Log.e("MainActivity", "Request URL: " + request.getUrl());
                     }
                 });
                 
@@ -848,8 +895,12 @@ jobs:
                 
                 setContentView(mainContainer);
                 
-                // Try multiple ports for initial connection
-                webView.loadUrl("http://localhost:3000");
+                // Try initial connection with detailed logging
+                String initialUrl = "http://localhost:3000";
+                Log.i("MainActivity", "🚀 Loading initial URL: " + initialUrl);
+                Log.i("MainActivity", "🎯 Expected version on dashboard: " + (isMasterVersion ? "MASTER - Database Mondiale" : "STANDARD - Cache Locale"));
+                
+                webView.loadUrl(initialUrl);
             }
             
             @Override
@@ -858,6 +909,56 @@ jobs:
                 if (requestCode == PERMISSIONS_REQUEST_CODE) {
                     startApp();
                 }
+            }
+            
+            private void detectVersionType() {
+                Log.i("MainActivity", "🔍 DEBUGGING VERSION DETECTION START");
+                Log.i("MainActivity", "Package name: " + getPackageName());
+                
+                try {
+                    String buildConfigClassName = getPackageName() + ".BuildConfig";
+                    Log.i("MainActivity", "Trying to load class: " + buildConfigClassName);
+                    
+                    Class<?> buildConfigClass = Class.forName(buildConfigClassName);
+                    Log.i("MainActivity", "✅ BuildConfig class loaded successfully");
+                    
+                    // List all available fields for debugging
+                    java.lang.reflect.Field[] allFields = buildConfigClass.getFields();
+                    Log.i("MainActivity", "Available BuildConfig fields:");
+                    for (java.lang.reflect.Field field : allFields) {
+                        Log.i("MainActivity", "  - " + field.getName() + " (" + field.getType() + ")");
+                    }
+                    
+                    java.lang.reflect.Field isMasterField = buildConfigClass.getField("IS_MASTER");
+                    Log.i("MainActivity", "✅ IS_MASTER field found");
+                    
+                    Boolean isMasterValue = (Boolean) isMasterField.get(null);
+                    Log.i("MainActivity", "IS_MASTER value: " + isMasterValue);
+                    
+                    isMasterVersion = isMasterValue;
+                    Log.i("MainActivity", "🎯 FINAL VERSION: " + (isMasterVersion ? "MASTER" : "STANDARD"));
+                    
+                    // Also check BUILD_TYPE for additional debugging
+                    try {
+                        java.lang.reflect.Field buildTypeField = buildConfigClass.getField("BUILD_TYPE");
+                        String buildType = (String) buildTypeField.get(null);
+                        Log.i("MainActivity", "BUILD_TYPE: " + buildType);
+                    } catch (Exception e) {
+                        Log.w("MainActivity", "Could not get BUILD_TYPE", e);
+                    }
+                    
+                } catch (ClassNotFoundException e) {
+                    Log.e("MainActivity", "❌ BuildConfig class not found: " + e.getMessage());
+                    isMasterVersion = false;
+                } catch (NoSuchFieldException e) {
+                    Log.e("MainActivity", "❌ IS_MASTER field not found: " + e.getMessage());
+                    isMasterVersion = false;
+                } catch (Exception e) {
+                    Log.e("MainActivity", "❌ Version detection failed: " + e.getMessage(), e);
+                    isMasterVersion = false;
+                }
+                
+                Log.i("MainActivity", "🔍 DEBUGGING VERSION DETECTION END - Result: " + isMasterVersion);
             }
         }
         EOF
@@ -1243,6 +1344,16 @@ jobs:
                 }
                 
                 Log.i(TAG, "🎬 Starting Node.js process with enhanced monitoring...");
+                Log.i(TAG, "🔍 DEBUGGING NODE.JS STARTUP:");
+                Log.i(TAG, "Node executable: " + nodeExecutable.getAbsolutePath());
+                Log.i(TAG, "Node executable exists: " + nodeExecutable.exists());
+                Log.i(TAG, "Node executable size: " + nodeExecutable.length() + " bytes");
+                Log.i(TAG, "Node executable canExecute: " + nodeExecutable.canExecute());
+                Log.i(TAG, "Script path: " + smartcacheScript.getAbsolutePath());
+                Log.i(TAG, "Script exists: " + smartcacheScript.exists());
+                Log.i(TAG, "Script size: " + (smartcacheScript.exists() ? smartcacheScript.length() : "N/A") + " bytes");
+                Log.i(TAG, "Working directory: " + projectDir.getAbsolutePath());
+                Log.i(TAG, "Working directory exists: " + projectDir.exists());
                 
                 ProcessBuilder pb = new ProcessBuilder(
                     nodeExecutable.getAbsolutePath(),
@@ -1266,16 +1377,33 @@ jobs:
                 String versionType = isMasterVersion ? "master" : "standard";
                 env.put("VERSION_TYPE", versionType);
                 Log.i(TAG, "🎯 VERSION_TYPE configured: " + versionType);
+                Log.i(TAG, "🎯 isMasterVersion value: " + isMasterVersion);
                 
-                Log.i(TAG, "🌍 Environment Variables:");
+                Log.i(TAG, "🌍 ALL Environment Variables:");
                 for (Map.Entry<String, String> entry : env.entrySet()) {
-                    if (entry.getKey().startsWith("NODE_") || entry.getKey().startsWith("DEBUG") || entry.getKey().startsWith("HOME")) {
-                        Log.i(TAG, "  " + entry.getKey() + "=" + entry.getValue());
+                    Log.i(TAG, "  " + entry.getKey() + "=" + entry.getValue());
+                }
+                
+                // Verify node_modules directory
+                File nodeModulesDir = new File(projectDir, "node_modules");
+                Log.i(TAG, "📦 node_modules check:");
+                Log.i(TAG, "  Path: " + nodeModulesDir.getAbsolutePath());
+                Log.i(TAG, "  Exists: " + nodeModulesDir.exists());
+                Log.i(TAG, "  Is directory: " + nodeModulesDir.isDirectory());
+                if (nodeModulesDir.exists()) {
+                    String[] contents = nodeModulesDir.list();
+                    Log.i(TAG, "  Contents count: " + (contents != null ? contents.length : 0));
+                    if (contents != null && contents.length > 0) {
+                        Log.i(TAG, "  First 5 modules: ");
+                        for (int i = 0; i < Math.min(5, contents.length); i++) {
+                            Log.i(TAG, "    - " + contents[i]);
+                        }
                     }
                 }
                 
                 // Start process with enhanced error handling
                 try {
+                    Log.i(TAG, "🚀 Starting ProcessBuilder...");
                     nodeProcess = pb.start();
                     Log.i(TAG, "✅ Process created successfully");
                     
@@ -1284,9 +1412,24 @@ jobs:
                         Log.i(TAG, "🆔 Node.js process started successfully");
                     }
                     
+                    // Wait a moment for process to initialize
+                    Thread.sleep(2000);
+                    
+                    // Check if process is still running
+                    try {
+                        int exitValue = nodeProcess.exitValue();
+                        Log.e(TAG, "❌ Process exited immediately with code: " + exitValue);
+                    } catch (IllegalThreadStateException e) {
+                        Log.i(TAG, "✅ Process still running (expected)");
+                    }
+                    
                 } catch (IOException e) {
                     Log.e(TAG, "❌ CRITICAL: Failed to start Node.js process", e);
+                    Log.e(TAG, "ProcessBuilder command: " + pb.command());
+                    Log.e(TAG, "Working directory: " + pb.directory());
                     throw e;
+                } catch (InterruptedException e) {
+                    Log.w(TAG, "Sleep interrupted", e);
                 }
                 
                 // Enhanced output monitoring with startup detection
@@ -1294,6 +1437,29 @@ jobs:
                 
                 // Monitor process health
                 startProcessHealthMonitoring();
+                
+                // Add health check after startup
+                new Thread(() -> {
+                    try {
+                        Log.i(TAG, "🏥 Starting server health check...");
+                        Thread.sleep(5000); // Wait 5 seconds for server startup
+                        
+                        for (int attempt = 1; attempt <= 10; attempt++) {
+                            Log.i(TAG, "🏥 Health check attempt " + attempt + "/10");
+                            
+                            if (testServerConnectivity("localhost", 3000)) {
+                                Log.i(TAG, "✅ SERVER IS REACHABLE! Health check passed.");
+                                break;
+                            } else {
+                                Log.w(TAG, "❌ Server not reachable, attempt " + attempt + "/10");
+                                Thread.sleep(2000);
+                            }
+                        }
+                        
+                    } catch (InterruptedException e) {
+                        Log.w(TAG, "Health check interrupted", e);
+                    }
+                }).start();
                 
                 Log.i(TAG, "🏁 Node.js process startup sequence initiated");
             }
@@ -1583,13 +1749,50 @@ jobs:
                 return null;
             }
             
+            private boolean testServerConnectivity(String host, int port) {
+                try {
+                    Log.i(TAG, "🌐 Testing connection to " + host + ":" + port);
+                    
+                    // Try to create socket connection
+                    java.net.Socket socket = new java.net.Socket();
+                    socket.connect(new java.net.InetSocketAddress(host, port), 3000); // 3 second timeout
+                    socket.close();
+                    
+                    Log.i(TAG, "✅ Socket connection successful");
+                    
+                    // Also try HTTP request
+                    java.net.URL url = new java.net.URL("http://" + host + ":" + port);
+                    java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                    connection.setConnectTimeout(3000);
+                    connection.setReadTimeout(3000);
+                    
+                    int responseCode = connection.getResponseCode();
+                    Log.i(TAG, "✅ HTTP connection successful, response code: " + responseCode);
+                    
+                    connection.disconnect();
+                    return true;
+                    
+                } catch (java.net.ConnectException e) {
+                    Log.w(TAG, "❌ Connection refused: " + e.getMessage());
+                    return false;
+                } catch (java.net.SocketTimeoutException e) {
+                    Log.w(TAG, "❌ Connection timeout: " + e.getMessage());
+                    return false;
+                } catch (Exception e) {
+                    Log.w(TAG, "❌ Connection test failed: " + e.getMessage());
+                    return false;
+                }
+            }
+            
             @Override
             public void onDestroy() {
                 super.onDestroy();
                 if (nodeProcess != null) {
+                    Log.i(TAG, "🛑 Destroying Node.js process");
                     nodeProcess.destroy();
                 }
                 if (executor != null) {
+                    Log.i(TAG, "🛑 Shutting down executor");
                     executor.shutdown();
                 }
             }
