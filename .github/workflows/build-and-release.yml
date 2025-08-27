@@ -2189,6 +2189,9 @@ jobs:
             id 'com.android.application'
         }
         
+        // Ensure plugin is applied correctly
+        apply plugin: 'com.android.application'
+        
         android {
             namespace 'com.freeapi.accelerator'
             compileSdk rootProject.ext.compileSdkVersion
