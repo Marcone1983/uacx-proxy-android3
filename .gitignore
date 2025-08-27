@@ -57,3 +57,83 @@ jspm_packages/
 # SmartCache specific
 smartcache.db
 *.db-journal
+
+# 🔐 ENTERPRISE SECURITY - SENSITIVE FILES
+# Environment configuration
+.env
+.env.local
+.env.development  
+.env.staging
+.env.production
+.env.test
+.env.*
+
+# Encrypted configuration files
+config/*.enc
+config/secure.enc
+config/production.enc
+config/staging.enc
+
+# Security keys and certificates
+*.key
+*.pem  
+*.crt
+*.p12
+*.pfx
+certs/
+keys/
+
+# Audit logs and security reports
+logs/*.enc
+audit_*.enc
+security-reports/
+*.sarif
+
+# Database files (with sensitive data)
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+data/
+backups/
+
+# Temporary files that might contain secrets
+*.tmp
+*.temp
+.secure_temp/
+
+# Wallet and blockchain data
+wallets/
+keystore/
+*.keystore
+
+# IDE and editor files that might cache secrets
+.vscode/settings.json
+.idea/workspace.xml
+*.swp
+*.swo
+*~
+
+# Testing artifacts that might contain real data
+tests/temp/
+tests/*.enc
+test_*.db
+
+# Coverage reports (might expose sensitive code paths)
+coverage/
+.nyc_output/
+
+# Package managers
+.pnpm-debug.log
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Runtime artifacts
+.pid
+.lock
+.cache/
+.tmp/

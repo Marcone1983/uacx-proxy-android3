@@ -1,0 +1,209 @@
+# 🔐 ENTERPRISE GITLEAKS CONFIGURATION
+# Comprehensive secret detection rules for enterprise security
+
+title = "FREEAPI Enterprise GitLeaks Configuration"
+description = "Detect and prevent secrets, keys, and sensitive data in commits"
+
+# Enable all default rules plus custom enterprise rules
+[extend]
+useDefault = true
+
+[[rules]]
+id = "ethereum-private-key"
+description = "Ethereum Private Key"
+regex = '''(?i)(eth[a-z_]*priv[a-z_]*key[a-z_]*|private[a-z_]*key)["']?\s*[:=]\s*["']?0x[a-f0-9]{64}'''
+tags = ["crypto", "ethereum", "private-key"]
+
+[[rules]]
+id = "wallet-seed-phrase"  
+description = "Crypto Wallet Seed Phrase"
+regex = '''(?i)(seed[a-z_]*phrase|mnemonic[a-z_]*phrase|recovery[a-z_]*phrase)["']?\s*[:=]\s*["']?(\w+\s+){11,23}\w+["']?'''
+tags = ["crypto", "wallet", "seed-phrase"]
+
+[[rules]]
+id = "infura-api-key"
+description = "Infura API Key"
+regex = '''(?i)infura[a-z_]*(?:api[a-z_]*)?key["']?\s*[:=]\s*["']?[a-f0-9]{32}'''
+tags = ["api-key", "infura", "blockchain"]
+
+[[rules]]
+id = "alchemy-api-key"
+description = "Alchemy API Key"  
+regex = '''(?i)alchemy[a-z_]*(?:api[a-z_]*)?key["']?\s*[:=]\s*["']?[A-Za-z0-9_-]{43}'''
+tags = ["api-key", "alchemy", "blockchain"]
+
+[[rules]]
+id = "moralis-api-key"
+description = "Moralis API Key"
+regex = '''(?i)moralis[a-z_]*(?:api[a-z_]*)?key["']?\s*[:=]\s*["']?[A-Za-z0-9]{72}'''
+tags = ["api-key", "moralis", "blockchain"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API Key"
+regex = '''sk-proj-[A-Za-z0-9_-]{20}T3BlbkFJ[A-Za-z0-9_-]{20}'''
+tags = ["api-key", "openai", "ai"]
+
+[[rules]]
+id = "anthropic-api-key"  
+description = "Anthropic Claude API Key"
+regex = '''sk-ant-api03-[A-Za-z0-9_-]{93}-[A-Za-z0-9_-]{6}AA'''
+tags = ["api-key", "anthropic", "ai"]
+
+[[rules]]
+id = "google-ai-api-key"
+description = "Google AI API Key"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+tags = ["api-key", "google", "ai"]
+
+[[rules]]
+id = "supabase-anon-key"
+description = "Supabase Anonymous Key"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'''
+tags = ["api-key", "supabase", "database"]
+
+[[rules]]
+id = "supabase-service-key"  
+description = "Supabase Service Key"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'''
+tags = ["api-key", "supabase", "service-key"]
+
+[[rules]]
+id = "jwt-secret"
+description = "JWT Secret Key"
+regex = '''(?i)jwt[a-z_]*secret["']?\s*[:=]\s*["']?[A-Za-z0-9+/]{32,}={0,2}'''
+tags = ["jwt", "secret", "auth"]
+
+[[rules]]
+id = "encryption-key"
+description = "Encryption Key"
+regex = '''(?i)(encrypt[a-z_]*key|aes[a-z_]*key|cipher[a-z_]*key)["']?\s*[:=]\s*["']?[A-Fa-f0-9]{32,}'''
+tags = ["encryption", "aes", "security"]
+
+[[rules]]
+id = "database-password"
+description = "Database Password"
+regex = '''(?i)(db[a-z_]*pass[a-z_]*|database[a-z_]*pass[a-z_]*)["']?\s*[:=]\s*["']?[^\s"']{8,}'''
+tags = ["database", "password", "credentials"]
+
+[[rules]]
+id = "master-passphrase"
+description = "Master Passphrase"  
+regex = '''(?i)master[a-z_]*pass[a-z_]*["']?\s*[:=]\s*["']?[^\s"']{12,}'''
+tags = ["master", "passphrase", "security"]
+
+[[rules]]
+id = "webhook-url"
+description = "Webhook URL with secrets"
+regex = '''https?://[^\s"']*webhook[^\s"']*[?&](?:token|key|secret)=[A-Za-z0-9_-]+'''
+tags = ["webhook", "url", "secret"]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack Webhook URL"  
+regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]{8}/B[A-Z0-9]{8}/[A-Za-z0-9]{24}'''
+tags = ["slack", "webhook", "integration"]
+
+[[rules]]
+id = "discord-webhook"
+description = "Discord Webhook URL"
+regex = '''https://discord(?:app)?\.com/api/webhooks/[0-9]{17,19}/[A-Za-z0-9_-]{68}'''
+tags = ["discord", "webhook", "integration"]
+
+[[rules]]
+id = "telegram-bot-token"
+description = "Telegram Bot Token"
+regex = '''[0-9]{8,10}:[A-Za-z0-9_-]{35}'''
+tags = ["telegram", "bot", "token"]
+
+[[rules]]
+id = "twilio-api-key"
+description = "Twilio API Key"
+regex = '''SK[A-Za-z0-9]{32}'''
+tags = ["twilio", "api-key", "sms"]
+
+[[rules]]
+id = "sendgrid-api-key" 
+description = "SendGrid API Key"
+regex = '''SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}'''
+tags = ["sendgrid", "api-key", "email"]
+
+[[rules]]
+id = "stripe-secret-key"
+description = "Stripe Secret Key"
+regex = '''sk_(test|live)_[A-Za-z0-9]{24}'''
+tags = ["stripe", "api-key", "payment"]
+
+[[rules]]
+id = "paypal-client-secret"
+description = "PayPal Client Secret"  
+regex = '''E[A-Za-z0-9_-]{80}'''
+tags = ["paypal", "client-secret", "payment"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["aws", "access-key", "cloud"]
+
+[[rules]]
+id = "azure-subscription-key"
+description = "Azure Subscription Key"
+regex = '''[a-f0-9]{32}'''
+tags = ["azure", "subscription-key", "cloud"]
+allowlist.regexes = [
+  '''00000000000000000000000000000000''', # Placeholder
+  '''11111111111111111111111111111111''', # Placeholder
+  '''aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa''', # Placeholder
+]
+
+# Files and paths to ignore
+[allowlist]
+description = "Allowed patterns and test files"
+files = [
+  '''(.*?)(jpg|gif|doc|pdf|bin|svg|socket|png|jpeg)$''',
+  '''.*/tests?/.*''',
+  '''.*/test/.*''',
+  '''.*/mock.*/.*''',
+  '''.*/example.*/.*''',
+  '''.*\.test\.js$''',
+  '''.*\.spec\.js$''',
+  '''.eslintrc\.js$''',
+  '''package-lock\.json$''',
+  '''.*\.md$'''
+]
+paths = [
+  '''node_modules/''',
+  '''\.git/''',
+  '''dist/''',
+  '''build/''',
+  '''coverage/''',
+  '''.nyc_output/''',
+  '''android/''',
+  '''assets/'''
+]
+regexes = [
+  '''(?i)example[a-z_]*key''',
+  '''(?i)test[a-z_]*key''',
+  '''(?i)mock[a-z_]*key''',
+  '''(?i)demo[a-z_]*key''',
+  '''(?i)placeholder''',
+  '''AAAA[A-Z0-9_-]+''', # Placeholder patterns
+  '''BBBB[A-Z0-9_-]+''', # Placeholder patterns  
+  '''1234567890abcdef''', # Test data
+  '''0x742d35Cc6575C80b8c3D3F5B4De1E99d2b8Fda4D''', # Test wallet
+  '''sk-test-[A-Za-z0-9_-]+''', # Test API keys
+  '''test-enterprise-passphrase-2024''', # Test passphrase
+]
+
+# Global settings
+[extend]
+stopwords = [
+  "example",
+  "test", 
+  "mock",
+  "demo",
+  "placeholder",
+  "template",
+  "sample"
+]

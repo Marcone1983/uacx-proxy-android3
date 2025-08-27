@@ -12,7 +12,17 @@
     "build": "node build.js",
     "build:exe": "pkg . --target node18-win-x64 --output dist/freeapi.exe",
     "deploy:enterprise": "node enterprise-deploy.js",
+    "test": "npm run test:unit && npm run test:integration && npm run test:security",
+    "test:unit": "mocha tests/enterprise-security.test.js --timeout 30000 --require tests/test-config.js --grep \"describe\"",
+    "test:integration": "mocha tests/enterprise-security.test.js --timeout 60000 --require tests/test-config.js --grep \"Integration Tests\"",
+    "test:security": "mocha tests/enterprise-security.test.js --timeout 60000 --require tests/test-config.js --grep \"Security Stress Tests\"",
+    "test:performance": "mocha tests/enterprise-security.test.js --timeout 120000 --require tests/test-config.js --grep \"Performance\"",
+    "test:watch": "mocha tests/enterprise-security.test.js --watch --require tests/test-config.js",
+    "test:coverage": "nyc --reporter=html --reporter=text mocha tests/enterprise-security.test.js --require tests/test-config.js",
     "test:intercept": "node test/test-interception.js",
+    "lint": "eslint src/ tests/ --fix",
+    "security-scan": "npm audit --audit-level high",
+    "vulnerability-check": "npm audit fix",
     "dev": "concurrently \"node src/smartcache.js\" \"node src/dashboard.js\"",
     "install:android": "npm install --production --target_arch=arm64 --target_platform=android"
   },
@@ -33,10 +43,16 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "chai": "^4.3.10",
     "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "mocha": "^10.2.0",
     "nodemon": "^3.0.2",
+    "nyc": "^15.1.0",
     "open": "^10.0.3",
-    "pkg": "^5.8.1"
+    "pkg": "^5.8.1",
+    "sinon": "^17.0.1",
+    "supertest": "^6.3.4"
   },
   "engines": {
     "node": ">=18.0.0",
