@@ -278,9 +278,15 @@ jobs:
         });
         EOF
         
-        # CRITICAL: Copy ALL node_modules (this was missing!)
-        echo "📦 Copying node_modules (this makes APK 100MB+)..."
-        cp -r node_modules android/app/src/main/assets/nodejs-project/
+        # CRITICAL: Copy node_modules excluding problematic duplicates
+        echo "📦 Copying node_modules with duplicate exclusions..."
+        
+        # Copy node_modules but exclude .gz files and other duplicates
+        rsync -av --exclude='*.gz' --exclude='*.map' --exclude='test/' --exclude='tests/' \
+              --exclude='*.md' --exclude='LICENSE*' --exclude='CHANGELOG*' --exclude='README*' \
+              node_modules android/app/src/main/assets/nodejs-project/
+        
+        echo "✅ node_modules copied excluding duplicate files"
         
         # Install any additional Android-specific deps
         cd android/app/src/main/assets/nodejs-project
