@@ -2148,11 +2148,25 @@ jobs:
                             pickFirst '**/libc++_shared.so'
                             pickFirst '**/libjsc.so'
                             pickFirst '**/libnode.so'
+                            
+                            // Fix duplicate bcryptjs files
+                            pickFirst '**/bcryptjs/dist/bcrypt.min.js'
+                            pickFirst '**/bcryptjs/dist/bcrypt.js'
+                            exclude '**/bcryptjs/dist/*.gz'
+                            
+                            // Handle other potential Node.js duplicates
+                            pickFirst '**/node_modules/**/*.js'
+                            exclude '**/node_modules/**/*.gz'
+                            exclude '**/node_modules/**/*.map'
+                            
+                            // Standard exclusions
                             exclude 'META-INF/DEPENDENCIES'
                             exclude 'META-INF/LICENSE'
                             exclude 'META-INF/LICENSE.txt'
                             exclude 'META-INF/NOTICE'
                             exclude 'META-INF/NOTICE.txt'
+                            exclude 'META-INF/INDEX.LIST'
+                            exclude 'META-INF/MANIFEST.MF'
                         }
                     }
                 }
@@ -2270,6 +2284,24 @@ jobs:
                 pickFirst '**/libjsc.so'
                 pickFirst '**/libnode.so'
                 pickFirst '**/libsqlite.so'
+                
+                // Fix Node.js asset duplicate resources - CRITICAL FIX
+                pickFirst '**/node_modules/bcryptjs/dist/bcrypt.min.js'
+                pickFirst '**/node_modules/bcryptjs/dist/bcrypt.js'
+                exclude '**/node_modules/bcryptjs/dist/*.gz'
+                
+                // Handle other Node.js potential duplicates
+                pickFirst '**/node_modules/**/*.js'
+                exclude '**/node_modules/**/*.gz'
+                exclude '**/node_modules/**/*.map'
+                exclude '**/node_modules/**/test/**'
+                exclude '**/node_modules/**/tests/**'
+                exclude '**/node_modules/**/*.md'
+                exclude '**/node_modules/**/LICENSE*'
+                exclude '**/node_modules/**/CHANGELOG*'
+                exclude '**/node_modules/**/README*'
+                
+                // Standard exclusions
                 exclude 'META-INF/DEPENDENCIES'
                 exclude 'META-INF/LICENSE'
                 exclude 'META-INF/LICENSE.txt'
@@ -2277,6 +2309,7 @@ jobs:
                 exclude 'META-INF/NOTICE.txt'
                 exclude 'META-INF/ASL2.0'
                 exclude 'META-INF/INDEX.LIST'
+                exclude 'META-INF/MANIFEST.MF'
                 exclude 'META-INF/io.netty.versions.properties'
             }
         }
